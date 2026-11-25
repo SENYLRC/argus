@@ -22,6 +22,8 @@
 # Never drops anything: schema loads only into an empty database, seed data
 # only into an empty users table, each migration once.
 set -euo pipefail
+# Say where it stopped if any step fails (a bare `set -e` exit is otherwise silent).
+trap 'echo "ERROR: install.sh stopped at line $LINENO (exit $?)" >&2' ERR
 
 APP_DIR=/var/www/argus
 # WEB_USER, if passed, picks the account PHP runs this app as (resolved below). On a server shared
@@ -76,8 +78,11 @@ for mod in rewrite ssl headers; do
     grep -q "^ ${mod}_module" <<<"$APACHE_MODS" || die "Apache module $mod not enabled (a2enmod $mod)"
 done
 
-# Apache's own account (from its envvars), which mod_php would run PHP as.
-APACHE_USER="$( (. /etc/apache2/envvars 2>/dev/null; echo "${APACHE_RUN_USER:-www-data}") )"
+# Apache's own account, which mod_php would run PHP as. Read from its envvars by parsing the
+# line, never by sourcing the file: envvars uses variables it never sets, so sourcing it under
+# `set -u` aborts this script without a word.
+APACHE_USER="$(sed -n 's/^export APACHE_RUN_USER=//p' /etc/apache2/envvars 2>/dev/null | tail -n1 | tr -d "\"' \r" || true)"
+APACHE_USER="${APACHE_USER:-www-data}"
 if [[ "$WEB_USER" != "$APACHE_USER" ]]; then
     say "Checking that PHP runs as $WEB_USER"
     # A dedicated account only works if PHP-FPM runs this site's pool as it. Under mod_php PHP
