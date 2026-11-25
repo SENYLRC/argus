@@ -1,0 +1,163 @@
+{% extends 'layout.twig' %}
+{% block title %}Monthly recurring batch{% endblock %}
+{% block content %}
+<main id="main" class="medium">
+  <div class="page-head" style="border-bottom:2px solid var(--rule);">
+    <div>
+      <h1>Your monthly recurring batch</h1>
+      <p>Your own sheet of bills that come every month. Confirm the lines that are unchanged, adjust the amounts that moved, skip anything that shouldn't go out. Submitting creates one request per included line. Set up and change your lines under <a href="#manage">Your recurring lines</a>.</p>
+    </div>
+  </div>
+
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;background:var(--navy);color:#fff;padding:16px 20px;">
+    <div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;">Billing period — {{ period_label }}</div>
+    <div style="font-size:12px;">Reminder email goes out on the 1st of each month</div>
+  </div>
+
+  {% if already_submitted %}
+    <p class="locked-note">You've already submitted the {{ period_label }} batch. Next month's sheet opens on the 1st.</p>
+  {% elseif not templates %}
+    <p class="locked-note">You don't have any recurring lines yet. Add the bills you pay every month below, and they'll appear here as your sheet.</p>
+  {% else %}
+  <form method="post" action="/batch">
+    {{ csrf_field|raw }}
+    <table class="data">
+      <caption>Your recurring monthly lines to confirm, adjust or skip</caption>
+      <thead>
+        <tr>
+          <th scope="col">Include</th>
+          <th scope="col">Payable to</th>
+          <th scope="col">Budget line</th>
+          <th scope="col" class="num">Last month</th>
+          <th scope="col" class="num">This month</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in templates %}
+        <tr class="{{ t.default_checked ? 'is-pending' : '' }}">
+          <td><input type="checkbox" name="include[]" value="{{ t.id }}" {{ t.default_checked ? 'checked' : '' }}
+                     aria-label="Include {{ t.payable_to }} in this month’s batch" data-batch-include></td>
+          <td style="font-weight:700;">{{ t.payable_to }}</td>
+          <td style="color:var(--grey);font-size:12px;">{{ t.line_code }} · {{ t.line_label }}</td>
+          <td class="num" style="color:var(--grey);">{{ t.last_formatted }}</td>
+          <td class="num"><input type="text" inputmode="decimal" name="amount[{{ t.id }}]" value="{{ t.default_display }}"
+                     aria-label="This month's amount for {{ t.payable_to }}, in dollars" style="width:110px;text-align:right;" data-batch-amount></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;border-bottom:2px solid var(--ink);padding:18px 10px;">
+      <div style="font-size:13px;color:var(--grey);" aria-live="polite"><span data-batch-count>{{ default_included_count }}</span> of {{ templates|length }} lines included</div>
+      <div style="display:flex;align-items:baseline;gap:14px;">
+        <span class="eyebrow">Batch total</span>
+        <span style="font-size:26px;font-weight:700;" data-batch-total>{{ default_total_formatted }}</span>
+      </div>
+    </div>
+    <div style="padding:22px 0;">
+      <button type="submit" class="btn btn-primary">Submit batch for approval</button>
+    </div>
+  </form>
+  <script>
+    function recalcBatch() {
+      var total = 0, count = 0;
+      document.querySelectorAll('[data-batch-include]').forEach(function (cb) {
+        var row = cb.closest('tr');
+        var amountInput = row.querySelector('[data-batch-amount]');
+        if (cb.checked) {
+          count++;
+          var n = parseFloat((amountInput.value || '0').replace(/[^0-9.]/g, ''));
+          if (!isNaN(n)) total += n;
+        }
+      });
+      document.querySelector('[data-batch-count]').textContent = String(count);
+      document.querySelector('[data-batch-total]').textContent = '$' + total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    }
+    document.querySelectorAll('[data-batch-include],[data-batch-amount]').forEach(function (el) {
+      el.addEventListener(el.matches('input[type=checkbox]') ? 'change' : 'input', recalcBatch);
+    });
+  </script>
+  {% endif %}
+
+  <section id="manage" class="admin-section" aria-labelledby="manage-h" style="border-bottom:0;margin-top:12px;">
+    <h2 class="section-heading" id="manage-h">Your recurring lines</h2>
+    <p class="admin-section__intro">Only you see these. The usual amount pre-fills each month’s sheet; you can still change it before submitting. Removing a line keeps every past request it created.</p>
+
+    {% if templates %}
+    <table class="data" style="margin-bottom:24px;">
+      <caption>Your recurring lines</caption>
+      <thead><tr><th scope="col">Payable to</th><th scope="col">Budget line</th><th scope="col">Paid by</th><th scope="col" class="num">Usual amount</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+      <tbody>
+        {% for t in templates %}
+        <tr>
+          <td style="font-weight:700;">{{ t.payable_to }}</td>
+          <td class="small muted">{{ t.line_code }} · {{ t.line_label }}</td>
+          <td>{{ t.payment_label }}</td>
+          <td class="num">{{ t.default_formatted }}</td>
+          <td class="nowrap" style="text-align:right;">
+            <a href="/batch?edit={{ t.id }}#line-form" class="btn-text" aria-label="Edit {{ t.payable_to }}">Edit</a>
+            <form method="post" action="/batch/lines/{{ t.id }}/remove" style="display:inline;margin-left:14px;" data-confirm="Remove {{ t.payable_to }} from your monthly sheet?">
+              {{ csrf_field|raw }}
+              <button type="submit" class="btn-text text-danger" aria-label="Remove {{ t.payable_to }}">Remove</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    <form id="line-form" method="post" action="{{ editing ? '/batch/lines/' ~ draft.id : '/batch/lines' }}" class="panel admin-form" novalidate>
+      {{ csrf_field|raw }}
+      <h3 class="panel-heading">{{ editing ? 'Edit recurring line' : 'Add a recurring line' }}</h3>
+      {% if errors %}
+      <div class="field-error" role="alert" tabindex="-1" id="line-errors" style="margin-bottom:12px;">
+        <strong>Please fix:</strong>
+        <ul style="margin:4px 0 0;padding-left:18px;">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+      </div>
+      <script>document.getElementById('line-errors').focus();</script>
+      {% endif %}
+
+      <div class="field">
+        <label for="payable_to">Payable to</label>
+        <input id="payable_to" type="text" name="payable_to" value="{{ draft.payable_to }}" maxlength="190" required
+               {% if errors.payable_to is defined %}aria-invalid="true" aria-describedby="err-payable"{% endif %}>
+        {% if errors.payable_to is defined %}<span class="field-error" id="err-payable">{{ errors.payable_to }}</span>{% endif %}
+      </div>
+
+      <div class="field" style="margin-top:14px;">
+        <label for="budget_line_id">Budget line</label>
+        <select id="budget_line_id" name="budget_line_id" required
+                {% if errors.budget_line_id is defined %}aria-invalid="true" aria-describedby="err-line"{% endif %}>
+          <option value="">Choose…</option>
+          {% for g in line_groups %}
+          <optgroup label="{{ g.name }}">
+            {% for l in g.lines %}<option value="{{ l.id }}" {{ draft.budget_line_id == l.id ? 'selected' }}>{{ l.code }} · {{ l.label }} ({{ l.class_name }})</option>{% endfor %}
+          </optgroup>
+          {% endfor %}
+        </select>
+        {% if errors.budget_line_id is defined %}<span class="field-error" id="err-line">{{ errors.budget_line_id }}</span>{% endif %}
+      </div>
+
+      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:14px;">
+        <div class="field" style="flex:1;min-width:160px;">
+          <label for="amount">Usual monthly amount ($)</label>
+          <input id="amount" type="text" inputmode="decimal" name="amount" value="{{ draft.amount }}" required
+                 {% if errors.default_cents is defined %}aria-invalid="true" aria-describedby="err-amount"{% endif %}>
+          {% if errors.default_cents is defined %}<span class="field-error" id="err-amount">{{ errors.default_cents }}</span>{% endif %}
+        </div>
+        <div class="field" style="flex:1;min-width:160px;">
+          <label for="payment_method">Paid by</label>
+          <select id="payment_method" name="payment_method">
+            {% for value, label in payment_methods %}<option value="{{ value }}" {{ draft.payment_method == value ? 'selected' }}>{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:16px;align-items:center;margin-top:18px;flex-wrap:wrap;">
+        <button type="submit" class="btn btn-primary">{{ editing ? 'Save changes' : 'Add to my sheet' }}</button>
+        {% if editing %}<a href="/batch#manage" class="btn-text">Cancel</a>{% endif %}
+      </div>
+    </form>
+  </section>
+</main>
+{% endblock %}

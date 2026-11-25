@@ -1,0 +1,25 @@
+{# Confirm a sign-in email change from the emailed link (AccountController).
+   A button, not an action on page load, so link scanners can't confirm it. #}
+{% extends 'layout.twig' %}
+{% block title %}Confirm your new email{% endblock %}
+{% block content %}
+<main id="main" class="login-shell">
+  <div class="login-card">
+    <img class="login-card__logo" src="{{ brand_url('login') }}" width="260" alt="Argus">
+    <h1 style="margin:0 0 12px;font-size:20px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;">Confirm your new email</h1>
+    {% if error is defined %}
+      <div class="field-error" role="alert" style="margin-bottom:16px;">{{ error }}</div>
+      <a href="/login" class="btn btn-outline">Go to sign in</a>
+    {% elseif token %}
+      <p style="margin:0 0 18px;font-size:14px;">Change your sign-in email to <strong>{{ new_email }}</strong>? You’ll be signed out everywhere and sign in again with the new address.</p>
+      <form method="post" action="/account/email/confirm/{{ token }}">
+        {{ csrf_field|raw }}
+        <button type="submit" class="btn btn-primary btn-full">Confirm new email</button>
+      </form>
+    {% else %}
+      <div class="field-error" role="alert" style="margin-bottom:16px;">This link has expired or was already used. Start the change again from My profile.</div>
+      <a href="/login" class="btn btn-outline">Go to sign in</a>
+    {% endif %}
+  </div>
+</main>
+{% endblock %}

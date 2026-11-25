@@ -1,0 +1,41 @@
+{# File integrity alert to Admin / Tech: code files changed since the last
+   approved baseline (src/Domain/FileMonitor.php). #}
+{% extends "mail/_layout.html.twig" %}
+{% import "mail/_macros.html.twig" as m %}
+{% macro files(title, list, count) %}
+{% if count %}
+<h3 style="margin:18px 0 6px;font-size:15px;">{{ title }} ({{ count }})</h3>
+<ul style="margin:0 0 6px;padding-left:20px;font-size:14px;">
+  {% for f in list %}<li><code>{{ f }}</code></li>{% endfor %}
+  {% if count > list|length %}<li>… and {{ count - list|length }} more</li>{% endif %}
+</ul>
+{% endif %}
+{% endmacro %}
+{% block subject %}File changes detected{% endblock %}
+{% block preheader %}Code files on the expenditure request system changed since the last approved baseline.{% endblock %}
+{% block body %}
+{{ m.heading('File changes detected') }}
+{{ m.p('Hi ' ~ (name|e) ~ ',') }}
+{{ m.p('The file monitor found changes to the system’s code since the last approved baseline.') }}
+{{ _self.files('Modified files', modified, modified_count) }}
+{{ _self.files('New files', added, added_count) }}
+{{ _self.files('Deleted files', deleted, deleted_count) }}
+{{ _self.files('Code files inside storage (should not exist)', storage_code, storage_count) }}
+{{ m.p('If these are expected (a deploy or your own edit), open the File integrity page and choose <strong>Accept changes</strong>. If not, treat the server as compromised: change passwords, restore from a clean copy and check the audit log.') }}
+{{ m.button(cta_url, 'Review the changes') }}
+{% endblock %}
+{% block plain %}{% autoescape false %}File changes detected
+
+Hi {{ name }},
+
+The file monitor found changes to the system's code since the last approved baseline.
+{% for sec in [['Modified files', modified, modified_count], ['New files', added, added_count], ['Deleted files', deleted, deleted_count], ['Code files inside storage (should not exist)', storage_code, storage_count]] %}{% if sec[2] %}
+
+{{ sec[0] }} ({{ sec[2] }}):
+{% for f in sec[1] %}  {{ f }}
+{% endfor %}{% if sec[2] > sec[1]|length %}  ... and {{ sec[2] - sec[1]|length }} more
+{% endif %}{% endif %}{% endfor %}
+
+If these are expected (a deploy or your own edit), open the File integrity page and choose "Accept changes". If not, treat the server as compromised: change passwords, restore from a clean copy and check the audit log.
+
+{{ cta_url }}{% endautoescape %}{% endblock %}

@@ -1,0 +1,95 @@
+{% extends 'layout.twig' %}
+{% block title %}Audit log — Administration{% endblock %}
+{% block content %}
+<main id="main" class="wide">
+  <div class="page-head" style="border-bottom:2px solid var(--rule);">
+    <div>
+      <h1>Audit log</h1>
+      <p>Every recorded action: sign-ins (including failed ones), requests and sign-offs, files opened, accounts, budget lines, settings and system jobs, each with the person, time, IP address and approximate location. Entries can’t be edited or deleted.</p>
+    </div>
+  </div>
+  {% include 'admin/_nav.twig' %}
+
+  <form method="get" action="/admin/audit" class="audit-filters" role="search" aria-label="Filter the audit log">
+    <div class="field">
+      <label for="f-who">Account</label>
+      <select id="f-who" name="who">
+        <option value="">Everyone</option>
+        {% for p in people %}<option value="{{ p }}" {{ filters.who == p ? 'selected' }}>{{ p }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="f-area">Area</label>
+      <select id="f-area" name="area">
+        <option value="">All areas</option>
+        {% for key, label in areas %}<option value="{{ key }}" {{ filters.area == key ? 'selected' }}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="f-from">From</label>
+      <input id="f-from" type="date" name="from" value="{{ filters.from }}">
+    </div>
+    <div class="field">
+      <label for="f-to">To</label>
+      <input id="f-to" type="date" name="to" value="{{ filters.to }}">
+    </div>
+    <div class="field" style="flex:2;min-width:200px;">
+      <label for="f-q">Contains</label>
+      <input id="f-q" type="text" name="q" value="{{ filters.q }}" placeholder="Request number, file name, IP…">
+    </div>
+    <div class="audit-filters__actions">
+      <button type="submit" class="btn btn-primary btn-small">Filter</button>
+      {% if qs %}<a href="/admin/audit" class="btn-text">Clear</a>{% endif %}
+    </div>
+  </form>
+
+  <div class="audit-summary">
+    <p class="small muted" role="status">{{ total|number_format }} {{ total == 1 ? 'entry' : 'entries' }}{{ qs ? ' match these filters' : '' }}{% if pages > 1 %} · page {{ page }} of {{ pages }}{% endif %}</p>
+    <a href="/admin/audit/export{{ qs ? '?' ~ qs }}" class="btn btn-outline btn-small">Download CSV{{ qs ? ' (filtered)' }}</a>
+  </div>
+
+  {% if rows %}
+  <div class="table-scroll" tabindex="0" role="region" aria-label="Audit log entries">
+  <table class="data">
+    <caption>Audit log entries, newest first</caption>
+    <thead><tr><th scope="col">When</th><th scope="col">Account</th><th scope="col">Area</th><th scope="col">What happened</th><th scope="col">IP &amp; location</th></tr></thead>
+    <tbody>
+      {% for ev in rows %}
+      <tr>
+        <td class="nowrap muted small" style="vertical-align:top;">{{ ev.when }}</td>
+        <td class="nowrap" style="vertical-align:top;font-weight:700;">{{ ev.who }}</td>
+        <td class="nowrap small" style="vertical-align:top;">{{ ev.area }}<div class="muted">{{ ev.action }}</div></td>
+        <td style="vertical-align:top;">
+          {{ ev.what }}
+          {% if ev.before or ev.after %}
+          <details class="audit-diff">
+            <summary class="btn-text">Before / after</summary>
+            <div class="audit-diff__cols">
+              {% if ev.before %}<div><div class="field-label">Before</div><pre>{{ ev.before }}</pre></div>{% endif %}
+              {% if ev.after %}<div><div class="field-label">After</div><pre>{{ ev.after }}</pre></div>{% endif %}
+            </div>
+          </details>
+          {% endif %}
+        </td>
+        <td class="small" style="vertical-align:top;white-space:nowrap;">
+          <div style="font-weight:700;">{{ ev.ip }}</div>
+          <div class="muted">{{ ev.geo }}</div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="admin-section__intro">No entries match these filters.</p>
+  {% endif %}
+
+  {% if pages > 1 %}
+  <nav class="pager" aria-label="Audit log pages">
+    {% if page > 1 %}<a href="/admin/audit?{{ qs ? qs ~ '&' }}page={{ page - 1 }}" rel="prev">← Newer</a>{% endif %}
+    <span class="small muted">Page {{ page }} of {{ pages }}</span>
+    {% if page < pages %}<a href="/admin/audit?{{ qs ? qs ~ '&' }}page={{ page + 1 }}" rel="next">Older →</a>{% endif %}
+  </nav>
+  {% endif %}
+</main>
+{% endblock %}

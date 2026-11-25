@@ -1,0 +1,25 @@
+{% extends 'layout.twig' %}
+{% block title %}Accessibility statement{% endblock %}
+{% block content %}
+<main id="main" class="narrow">
+  <div class="page-head" style="border-bottom:2px solid var(--rule);">
+    <div>
+      <h1>Accessibility statement</h1>
+      <p>For the Expenditure &amp; Encumbrance Request System.</p>
+    </div>
+  </div>
+  <div style="padding:20px 0;font-size:14px;line-height:1.6;">
+    <h2 class="section-heading">Conformance target</h2>
+    <p>This application targets <strong>WCAG 2.1 Level AA</strong>, per the design specification's accessibility checklist (colour and contrast, keyboard and focus, structure and names, feedback and errors, reflow and zoom, and text alternatives for uploads).</p>
+
+    <h2 class="section-heading" style="margin-top:24px;">Known exceptions</h2>
+    <ul>
+      <li>Scanned invoice/receipt attachments (JPG/PNG) cannot be automatically tagged as PDF/UA content when merged into a generated record — the cover sheet page itself uses real table/heading markup and is tagged, but a scanned image page is not machine-readable text. Staff are asked to summarize a scanned invoice's key details in the justification field as a text alternative.</li>
+      <li>This build has not yet had an automated (axe/Pa11y) or assistive-technology (NVDA/VoiceOver) audit performed against a live deployment — see the project README's "Before go-live" section.</li>
+    </ul>
+
+    <h2 class="section-heading" style="margin-top:24px;">Contact</h2>
+    <p>Report an accessibility problem with this application to Admin / Tech at <a href="mailto:admin@example.org">admin@example.org</a>.</p>
+  </div>
+</main>
+{% endblock %}

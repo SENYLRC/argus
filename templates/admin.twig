@@ -1,0 +1,171 @@
+{% extends 'layout.twig' %}
+{% block title %}Administration{% endblock %}
+{% block content %}
+<main id="main" class="wide">
+  <div class="page-head" style="border-bottom:2px solid var(--rule);">
+    <div>
+      <h1>Administration</h1>
+      <p>Accounts, email, files and branding, the site banner, budget lines and the audit log. Admin can also open and override any request from the queue.</p>
+    </div>
+  </div>
+  {% include 'admin/_nav.twig' %}
+
+  <section style="padding:24px 0;border-bottom:2px solid var(--rule);">
+    <h2 class="section-heading">Accounts</h2>
+    <p style="margin:0 0 16px;font-size:13px;color:var(--grey);max-width:75ch;">Account management lives on its own tab — shared with the Executive Director and bookkeeper, who can add and edit staff accounts but not grant approver roles.</p>
+    <a href="/users" class="btn btn-accent-outline">Open accounts</a>
+  </section>
+
+  <section id="budget-lines" style="padding:24px 0;border-bottom:2px solid var(--rule);" aria-labelledby="bl-h">
+    <h2 class="section-heading" id="bl-h">Budget lines</h2>
+    <p class="admin-section__intro">The Executive Director and bookkeeper see every line. Staff and Admin / Tech see the lines assigned to them plus every <strong>shared</strong> line (travel, postage, building…). Anyone with nothing assigned yet still sees every line. Lines can also be assigned per person under <a href="/users">Accounts</a>.</p>
+
+    <details class="panel" {{ budget_lines is empty ? 'open' }}>
+      <summary class="panel-heading" style="cursor:pointer;margin:0;">Add a budget line</summary>
+      <form method="post" action="/admin/budget-lines" style="margin-top:14px;">
+        {{ csrf_field|raw }}
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;">
+          <div class="field">
+            <label for="bl-fy">Fiscal year</label>
+            <select id="bl-fy" name="fiscal_year">
+              {% for value, label in fiscal_year_choices %}<option value="{{ value }}" {{ value == current_fy ? 'selected' }}>{{ label }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label for="bl-code">Account number</label>
+            <input id="bl-code" type="text" name="code" maxlength="20" required placeholder="e.g. 84.40">
+          </div>
+          <div class="field">
+            <label for="bl-label">Description</label>
+            <input id="bl-label" type="text" name="label" maxlength="160" required placeholder="e.g. Postage">
+          </div>
+        </div>
+        <fieldset class="plain-fieldset" style="margin-top:14px;">
+          <legend class="field-label">Budget classes it’s in, with the FY budget for each <span class="muted">(QuickBooks classes — tick every one it has an amount in)</span></legend>
+          <div class="check-columns" style="margin-left:0;">
+            {% for c in budget_classes %}
+            <div class="class-amount">
+              <label class="check-inline"><input type="checkbox" name="class_ids[]" value="{{ c.id }}"> {{ c.name }}</label>
+              <label class="visually-hidden" for="amt-{{ c.id }}">{{ c.name }} budget amount</label>
+              <input id="amt-{{ c.id }}" type="text" inputmode="decimal" name="amounts[{{ c.id }}]" placeholder="Budget $" style="width:110px;">
+            </div>
+            {% endfor %}
+          </div>
+        </fieldset>
+        {% include 'partials/_line_access.twig' with {prefix: 'new', shared: false, assigned_ids: []} %}
+        <button type="submit" class="btn btn-primary" style="margin-top:14px;">Add budget line</button>
+      </form>
+    </details>
+
+    {# By fiscal year, then account series (83, 84, 85 …). #}
+    {% for sec in line_sections %}
+    <h3 class="section-heading" style="margin-top:22px;">FY {{ sec.fy }}</h3>
+    {% for g in sec.groups %}
+    <div class="series-heading" style="margin-top:14px;">{{ g.series }}</div>
+    <div class="grid-cells">
+      {% for bl in g.items %}
+      <div class="grid-cell{{ bl.active ? '' : ' is-retired' }}" id="line-{{ bl.id }}">
+        <div style="font-weight:700;">{{ bl.code }}{{ bl.verified ? '' : ' — unverified' }}{{ bl.active ? '' : ' — retired' }}</div>
+        <div style="font-size:13px;">{{ bl.label }}</div>
+        <div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--navy);margin-top:6px;">{{ bl.class_name }} · FY {{ bl.fiscal_year }}</div>
+        <div class="small" style="margin-top:6px;">
+          {% if bl.shared %}<span class="badge badge-approved">Shared with everyone</span>
+          {% elseif bl.assigned_names %}<span class="muted">Assigned to {{ bl.assigned_names|join(', ') }}</span>
+          {% else %}<span class="muted">Not assigned to anyone</span>{% endif %}
+        </div>
+        <div class="small" style="margin-top:6px;">
+          {% if bl.fig.budget %}Budget {{ bl.fig.budget }} · {{ bl.fig.approved }} approved · {{ bl.fig.pending }} pending ·
+            <span class="{{ bl.fig.over ? 'text-danger' : '' }}">{{ bl.fig.remaining }}</span>
+          {% else %}<span class="muted">No budget entered · {{ bl.fig.approved }} approved, {{ bl.fig.pending }} pending</span>{% endif %}
+        </div>
+        {% if bl.active and bl.verified %}
+        <form method="post" action="/admin/budget-lines/{{ bl.id }}/budget" class="budget-form">
+          {{ csrf_field|raw }}
+          <label for="bud-{{ bl.id }}" class="visually-hidden">FY {{ bl.fiscal_year }} budget for {{ bl.code }} {{ bl.class_name }}</label>
+          <input id="bud-{{ bl.id }}" type="text" inputmode="decimal" name="budget" value="{{ bl.fig.budget_input }}" placeholder="Budget $" style="width:110px;">
+          <button type="submit" class="btn btn-outline btn-small">Set budget</button>
+        </form>
+        {% endif %}
+        {% if not bl.active %}
+        {% if bl.kept_by.requests or bl.kept_by.recurring %}
+        <p class="small" style="margin:8px 0 0;">Kept because it’s used by
+          {% for r in bl.kept_by.requests %}{{ r.number }} ({{ r.status }}){{ not loop.last ? ', ' }}{% endfor %}{{ bl.kept_by.requests and bl.kept_by.recurring ? '; ' }}
+          {% for t in bl.kept_by.recurring %}{{ t.owner }}’s recurring line “{{ t.payable_to }}”{{ not loop.last ? ', ' }}{% endfor %}.
+        </p>
+        {% else %}
+        <form method="post" action="/admin/budget-lines/{{ bl.id }}/remove" style="margin-top:10px;" data-confirm="Delete {{ bl.code }} · {{ bl.label }} ({{ bl.class_name }}, FY {{ bl.fiscal_year }}) permanently? Nothing uses it.">
+          {{ csrf_field|raw }}
+          <button type="submit" class="btn btn-danger-outline btn-small" aria-label="Delete retired budget line {{ bl.code }} {{ bl.label }}">Delete</button>
+        </form>
+        {% endif %}
+        <form method="post" action="/admin/budget-lines/{{ bl.id }}/restore" style="margin-top:8px;">
+          {{ csrf_field|raw }}
+          <button type="submit" class="btn btn-outline btn-small">Restore</button>
+        </form>
+        {% elseif not bl.verified %}
+        <form method="post" action="/admin/budget-lines/{{ bl.id }}/promote" style="margin-top:10px;">
+          {{ csrf_field|raw }}
+          <button type="submit" class="btn btn-outline btn-small">Promote to verified</button>
+        </form>
+        {% else %}
+        <details style="margin-top:10px;">
+          <summary class="btn-text" style="cursor:pointer;">Who can use it</summary>
+          <p class="field-hint" style="margin:6px 0 0;">Applies to {{ bl.code }} in every class it’s budgeted in for FY {{ bl.fiscal_year }}.</p>
+          <form method="post" action="/admin/budget-lines/{{ bl.id }}/access" style="margin-top:8px;">
+            {{ csrf_field|raw }}
+            {% include 'partials/_line_access.twig' with {prefix: 'l' ~ bl.id, shared: bl.shared, assigned_ids: bl.assigned_ids} %}
+            <button type="submit" class="btn btn-outline btn-small" style="margin-top:10px;">Save</button>
+          </form>
+        </details>
+        {% endif %}
+        {% if bl.active %}
+        <form method="post" action="/admin/budget-lines/{{ bl.id }}/remove" style="margin-top:8px;"
+              data-confirm="Remove {{ bl.code }} · {{ bl.label }}? If any request uses it, it's retired (kept for those records) instead of deleted.">
+          {{ csrf_field|raw }}
+          <button type="submit" class="btn-text text-danger" aria-label="Remove budget line {{ bl.code }} {{ bl.label }}">Remove</button>
+        </form>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+    {% endfor %}
+    <p style="margin:14px 0 0;font-size:12px;color:var(--grey);">Staff-entered free-text lines land here as <strong>unverified</strong> for admin to promote or merge — so the dropdown stays clean without blocking anyone.</p>
+  </section>
+
+  <section style="padding:24px 0;">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;">
+      <h2 class="section-heading">Recent activity</h2>
+      <a href="/admin/audit" class="btn btn-outline btn-small">Full audit log — filter &amp; export</a>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <caption class="visually-hidden">Last 20 audit log entries: time, account, action, IP address and resolved location</caption>
+      {# Visually a borderless log stream with no header row (README §8) — but
+         a screen reader still needs column headers to navigate cell-by-cell
+         meaningfully, so these are visually hidden, not omitted. #}
+      <thead>
+        <tr>
+          <th scope="col" class="visually-hidden">Time</th>
+          <th scope="col" class="visually-hidden">Account</th>
+          <th scope="col" class="visually-hidden">Action</th>
+          <th scope="col" class="visually-hidden">IP address and location</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ev in audit_log %}
+        <tr style="border-bottom:2px solid var(--rule);">
+          <td style="padding:12px 10px 12px 0;color:var(--grey);white-space:nowrap;font-size:12px;vertical-align:top;">{{ ev.when }}</td>
+          <td style="padding:12px 10px;font-weight:700;white-space:nowrap;vertical-align:top;">{{ ev.who }}</td>
+          <td style="padding:12px 10px;vertical-align:top;">{{ ev.what }}</td>
+          <td style="padding:12px 0 12px 10px;text-align:right;color:var(--grey);font-size:12px;vertical-align:top;white-space:nowrap;">
+            <div style="font-weight:700;color:var(--ink);">{{ ev.ip }}</div>
+            <div>{{ ev.geo }}</div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p style="margin:16px 0 0;font-size:12px;color:var(--grey);max-width:80ch;">IP is captured from <code>X-Forwarded-For</code> / <code>REMOTE_ADDR</code> at every action; city, region and ISP come from a local MaxMind GeoLite2 database updated weekly, so no request data leaves the server. Office-LAN addresses resolve to the Highland office; remote staff resolve to their ISP's city, which is approximate by design — treat it as corroborating detail, not proof of location.</p>
+  </section>
+</main>
+{% endblock %}

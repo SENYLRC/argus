@@ -1,0 +1,409 @@
+/* Expenditure & Encumbrance Requests — single hand-written stylesheet.
+   Design tokens and rules come from the handoff README + Southeastern
+   Identity Style Guide v3.0. Flush-left throughout, zero border-radius
+   anywhere, structure from 2px rules — never shadows. */
+
+:root {
+  --ground: #F4F3F1;
+  --surface: #FFFFFF;
+  --ink: #201E1D;
+  --rule: #E3E0DC;
+  --grey: #5F5F5F;
+  --blue: #0081B5;        /* rules, active tab bar, focus ring, large figures — never text */
+  --navy: #1C4C7C;        /* all blue text, links, primary fills, approved status */
+  --blue-fill: #00658F;   /* white-text badges needing a blue */
+  --gold: #B58358;        /* pending badge (with ink text), accent borders */
+  --sand: #DBCEAC;        /* notification band, selection bar, attachment confirmation */
+  --maroon: #8D1A3D;      /* reject, delete, deactivated */
+  --green: #517C5C;       /* complete badge, approve button fill */
+  --green-ink: #3F6249;   /* green text, e.g. "Active" */
+  --desk: #4A4A4A;        /* print-preview background */
+}
+
+* { box-sizing: border-box; }
+
+html { color-scheme: light; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+a { color: var(--navy); }
+a:hover { color: var(--navy); }
+
+input, select, textarea, button { font-family: inherit; }
+
+*:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+
+::selection { background: var(--sand); color: var(--ink); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+@media (forced-colors: active) {
+  button, input, select, textarea { border: 2px solid ButtonText; }
+}
+
+/* ---------- Skip link ---------- */
+.skip-link {
+  position: absolute; left: -9999px; top: 0; z-index: 50;
+  background: var(--ink); color: #fff; padding: 12px 18px;
+  font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  text-decoration: none;
+}
+.skip-link:focus { left: 0; }
+
+/* ---------- Header / nav / toast ---------- */
+/* Navy bar + gold rule, after the Southeastern display board (senytv).
+   Contrast on navy: white 8.9:1, sand 5.7:1 — both pass AA for any size.
+   Gold on navy is only 2.7:1, so gold stays a rule/divider here, never text. */
+.app-header {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px 24px; flex-wrap: wrap; padding: 0 28px 0 4px;
+  background: var(--navy); color: #fff; border-bottom: 3px solid var(--gold);
+}
+.app-header__brand { display: flex; align-items: center; flex-wrap: wrap; }
+/* 24px (.25") clear space around the logo, per the style guide. */
+.app-header__logo {
+  display: block; padding: 24px; line-height: 0;
+  border-right: 2px solid rgba(181,131,88,.55); /* decorative divider */
+}
+.app-header__logo img { display: block; height: 56px; width: auto; max-width: 100%; }
+.app-header__title {
+  padding: 12px 24px; font-size: 20px; font-weight: 700; letter-spacing: .04em;
+  text-transform: uppercase; color: #fff;
+}
+.app-header__actions { display: flex; align-items: center; gap: 14px; padding: 12px 0; }
+.app-header__user { border-left: 2px solid rgba(181,131,88,.55); padding-left: 14px; text-align: right; }
+.app-header__user-name { font-size: 13px; font-weight: 700; color: #fff; }
+.app-header__user-role { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--sand); }
+/* Brand blue is only 2:1 against navy — use white for focus inside the header. */
+.app-header *:focus-visible { outline-color: #fff; }
+
+@media (max-width: 640px) {
+  .app-header { padding-right: 16px; }
+  .app-header__logo { border-right: 0; padding: 16px 16px 8px; }
+  .app-header__logo img { height: 48px; }
+  .app-header__title { padding: 0 16px 8px; font-size: 16px; }
+  .app-header__actions { padding: 0 0 12px 16px; }
+}
+
+.tabs { display: flex; gap: 0; background: var(--surface); border-bottom: 2px solid var(--ink); padding: 0 28px; flex-wrap: wrap; }
+.tabs a {
+  appearance: none; background: transparent; border: 0; border-bottom: 4px solid transparent;
+  color: var(--grey); padding: 14px 20px 11px; font-size: 11px; font-weight: 700;
+  letter-spacing: .12em; text-transform: uppercase; text-decoration: none; cursor: pointer;
+}
+.tabs a:hover { background: var(--ground); }
+.tabs a[aria-current="page"] { border-bottom-color: var(--blue); color: var(--ink); }
+
+.notice {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  background: var(--sand); border-bottom: 2px solid var(--ink); padding: 12px 28px; font-size: 13px;
+}
+.notice__tag {
+  font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  background: var(--ink); color: #fff; padding: 3px 8px;
+}
+.notice__body { display: flex; align-items: center; gap: 12px; }
+
+/* Email test mode bar (admins only). Ink on the pale tint 15:1; maroon rule decorative. */
+.test-mode-bar {
+  display: flex; align-items: center; gap: 8px 16px; flex-wrap: wrap;
+  background: #F6E8EC; border-bottom: 2px solid var(--maroon); padding: 10px 28px; font-size: 13px; color: var(--ink);
+}
+.test-mode-bar a { color: var(--maroon); font-weight: 700; }
+
+/* Radio choice rows (label + hint), e.g. email test mode. */
+.choice { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-bottom: 2px solid var(--rule); text-transform: none; letter-spacing: 0; font-size: 14px; color: var(--ink); cursor: pointer; }
+.choice input { margin-top: 2px; flex-shrink: 0; }
+.choice__label { display: block; font-weight: 700; }
+.choice__hint { display: block; font-size: 12px; color: var(--grey); margin-top: 2px; }
+
+.app-footer {
+  border-top: 3px solid var(--gold); background: var(--surface); padding: 20px 28px;
+  display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; font-size: 11px; color: var(--grey);
+}
+
+/* ---------- Layout ---------- */
+main { padding: 28px; max-width: 1400px; }
+main.narrow { max-width: 1000px; }
+main.medium { max-width: 1200px; }
+main.wide { max-width: 1300px; }
+
+.page-head {
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap;
+  border-bottom: 2px solid var(--ink); padding-bottom: 14px;
+}
+.page-head h1 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; }
+.page-head p { margin: 6px 0 0; color: var(--grey); font-size: 13px; max-width: 70ch; }
+
+.eyebrow { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--grey); }
+.section-heading { margin: 0 0 16px; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--grey); }
+
+/* ---------- Buttons ---------- */
+.btn {
+  appearance: none; border-radius: 0; cursor: pointer; display: inline-block; text-align: left;
+  font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  padding: 14px 22px; border: 0; text-decoration: none;
+}
+.btn-primary { background: var(--navy); color: #fff; }
+.btn-primary:hover { background: #103A62; }
+.btn-outline { background: transparent; border: 2px solid var(--ink); color: var(--ink); }
+.btn-outline:hover { background: var(--ink); color: #fff; }
+.btn-ink { background: var(--ink); color: #fff; }
+.btn-ink:hover { background: #103A62; }
+.btn-danger-outline { background: transparent; border: 2px solid var(--maroon); color: var(--maroon); }
+.btn-danger-outline:hover { background: var(--maroon); color: #fff; }
+.btn-danger { background: var(--maroon); color: #fff; border: 0; }
+.btn-success { background: var(--green); color: #fff; border: 0; }
+.btn-success:hover { background: var(--green-ink); }
+.btn-accent-outline { background: transparent; border: 2px solid var(--blue); color: var(--navy); }
+.btn-accent-outline:hover { background: var(--navy); color: #fff; }
+.btn-on-dark { background: transparent; border: 2px solid #fff; color: #fff; }
+.btn-on-dark:hover { background: #fff; color: var(--navy); }
+.btn-text { appearance: none; background: transparent; border: 0; color: var(--navy); padding: 0; font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; cursor: pointer; }
+.btn-small { padding: 7px 12px; font-size: 10px; letter-spacing: .1em; }
+.btn-full { width: 100%; }
+.btn[disabled] { opacity: .5; cursor: not-allowed; }
+
+/* ---------- Stat strip ---------- */
+.stat-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); border-bottom: 2px solid var(--ink); }
+.stat-cell { padding: 18px 20px 16px; border-right: 2px solid var(--rule); }
+.stat-cell__value { font-size: 28px; font-weight: 700; margin-top: 6px; }
+.stat-cell__sub { font-size: 11px; color: var(--grey); margin-top: 2px; }
+
+/* ---------- Selection bar ---------- */
+.selection-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  padding: 14px 10px; border-bottom: 2px solid var(--rule); background: transparent;
+}
+.selection-bar.has-selection { background: var(--sand); }
+.selection-bar__left { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+
+/* ---------- Tables ---------- */
+table.data { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.data caption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+table.data thead tr { border-bottom: 2px solid var(--ink); }
+table.data th { text-align: left; padding: 12px 10px; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--grey); }
+table.data th.num, table.data td.num { text-align: right; }
+table.data tbody tr { border-bottom: 2px solid var(--rule); }
+table.data td { padding: 14px 10px; }
+table.data tr.is-pending { background: var(--surface); }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---------- Status badges ---------- */
+.badge { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; padding: 4px 8px; }
+.badge-pending { background: var(--gold); color: var(--ink); }
+.badge-approved { background: var(--navy); color: #fff; }
+.badge-complete { background: var(--green); color: #fff; }
+.badge-rejected { background: var(--maroon); color: #fff; }
+.badge-role-admin { background: var(--maroon); color: #fff; }
+.badge-role-ed { background: var(--navy); color: #fff; }
+.badge-role-bookkeeper { background: var(--blue-fill); color: #fff; }
+.badge-role-staff { background: var(--grey); color: #fff; }
+
+/* ---------- Forms ---------- */
+label, .field-label { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--grey); }
+.field { display: flex; flex-direction: column; gap: 6px; }
+input[type=text], input[type=email], input[type=date], input[type=password], input[type=number],
+select, textarea {
+  border: 2px solid var(--ink); border-radius: 0; padding: 11px; font-size: 14px; background: #fff; width: 100%;
+}
+textarea { resize: vertical; }
+input[type=checkbox], input[type=radio] { width: 18px; height: 18px; accent-color: var(--navy); }
+.field-error { color: var(--maroon); font-size: 12px; margin-top: 4px; }
+input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="true"] { border-color: var(--maroon); }
+
+.segmented { display: flex; gap: 0; border: 2px solid var(--ink); }
+.segmented button { flex: 1; appearance: none; border: 0; border-radius: 0; padding: 12px; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; cursor: pointer; background: #fff; color: var(--ink); }
+.segmented button + button { border-left: 2px solid var(--ink); }
+.segmented button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+
+.dropzone { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; border: 2px dashed var(--grey); padding: 18px; background: #fff; }
+.attachment-confirm { margin-top: 10px; font-size: 13px; background: var(--sand); border: 2px solid var(--ink); padding: 10px 14px; }
+
+/* ---------- Panels ---------- */
+.panel { border: 2px solid var(--ink); background: #fff; padding: 18px; margin-bottom: 16px; }
+.panel-danger { border-color: var(--maroon); }
+.panel-heading { font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 14px; }
+.locked-note { border-left: 4px solid var(--gold); background: #fff; padding: 14px 16px; margin-bottom: 16px; font-size: 13px; color: var(--grey); }
+
+/* ---------- Signature tiles ---------- */
+/* Each tile is a <label> wrapping a visually-hidden native radio (see
+   templates/partials/_signature_picker.twig) — the initial selected/
+   unselected look comes from an inline style set at render time, so it
+   works with no JS and no :has() support. This focus-within rule is what
+   makes a keyboard user's position visible: the radio itself has zero
+   opacity, so without this, tabbing through the tiles would show no focus
+   indicator anywhere (WCAG 2.4.7). */
+.sig-tile { appearance: none; display: block; width: 100%; text-align: left; cursor: pointer; border: 2px solid var(--ink); background: #fff; border-radius: 0; padding: 12px 14px; margin-bottom: 10px; }
+.sig-tile:focus-within { outline: 2px solid var(--blue); outline-offset: 2px; }
+.sig-preview { font-family: Georgia, serif; font-style: italic; font-size: 22px; line-height: 1.1; }
+.sig-tile__meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+.sig-tile__mark { font-weight: 700; color: var(--blue-fill); }
+
+/* ---------- Timeline (detail screen) ---------- */
+.timeline { list-style: none; margin: 0; padding: 0; }
+.timeline li { display: grid; grid-template-columns: 14px 1fr; gap: 14px; padding-bottom: 20px; }
+.timeline .dot { width: 14px; height: 14px; margin-top: 3px; }
+.dot-blue { background: var(--blue); }
+.dot-green { background: var(--green); }
+.dot-maroon { background: var(--maroon); }
+.timeline-note { margin-top: 8px; font-size: 13px; background: #fff; border-left: 4px solid var(--gold); padding: 10px 12px; }
+.timeline-sig { margin-top: 10px; border: 2px solid var(--ink); background: #fff; padding: 12px 14px; }
+
+/* ---------- Detail three-column layout ---------- */
+.detail-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 0; }
+.detail-columns > section { padding: 22px 24px; border-right: 2px solid var(--rule); }
+.detail-columns > section:last-child { border-right: 0; }
+dl.kv { margin: 20px 0 0; display: grid; grid-template-columns: auto 1fr; gap: 10px 18px; font-size: 13px; }
+dl.kv dt { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--grey); padding-top: 2px; }
+dl.kv dd { margin: 0; white-space: pre-line; }
+
+/* ---------- Budget line grid ---------- */
+.line-row { display: grid; grid-template-columns: minmax(140px,.8fr) minmax(220px,1.6fr) minmax(120px,.6fr) auto; gap: 12px; align-items: end; margin-top: 16px; }
+.line-remove { appearance: none; background: transparent; border: 2px solid var(--ink); border-radius: 0; padding: 11px 14px; font-size: 12px; font-weight: 700; cursor: pointer; height: 43px; }
+.line-remove:hover { background: var(--maroon); border-color: var(--maroon); color: #fff; }
+.custom-line-input { border-color: var(--gold) !important; margin-top: 2px; }
+
+/* ---------- Print sheets ---------- */
+.print-shell { padding: 28px; display: flex; flex-direction: column; align-items: center; gap: 20px; background: var(--desk); }
+.print-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; width: 100%; max-width: 816px; color: #fff; }
+.sheet { page-break-after: always; }
+
+@media print {
+  .noprint { display: none !important; }
+  body { background: #fff; }
+  .print-shell { background: #fff; padding: 0; }
+}
+
+/* ---------- Budget line / admin grid cells ---------- */
+.grid-cells { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0; border-top: 2px solid var(--ink); }
+.grid-cell { padding: 16px 18px; border-bottom: 2px solid var(--rule); border-right: 2px solid var(--rule); }
+
+.role-guide { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0; border-bottom: 2px solid var(--ink); }
+.role-guide__cell { padding: 18px 20px 18px 0; border-right: 2px solid var(--rule); }
+
+.email-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 24px; padding: 24px 0; }
+.email-card { border: 2px solid var(--ink); background: #fff; }
+.email-card__trigger { background: var(--ink); color: #fff; padding: 10px 14px; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
+.email-card__meta { padding: 14px; border-bottom: 2px solid var(--rule); font-size: 12px; color: var(--grey); }
+.email-card__body { padding: 18px 14px; }
+.email-card__org { border-bottom: 2px solid var(--blue); padding-bottom: 8px; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--grey); }
+.email-card__cta { margin-top: 16px; display: inline-block; background: var(--navy); color: #fff; padding: 11px 16px; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.email-card__footer { margin-top: 18px; border-top: 1px solid var(--rule); padding-top: 10px; font-size: 10px; color: var(--grey); }
+
+.login-shell { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 28px; background: var(--navy); }
+.login-card { width: 100%; max-width: 420px; background: #fff; border-top: 6px solid var(--gold); padding: 28px; }
+/* Stacked two-colour logo; 260px keeps "NY Library Resources Council"
+   legible (style guide: never resize so the text becomes unreadable), and
+   the bottom margin gives the required .25" clear space. */
+.login-card__logo { display: block; width: 260px; max-width: 100%; height: auto; margin: 0 0 24px; }
+
+/* ---------- Test-site banner (everyone; Administration > Site banner) ----------
+   White on maroon is 9.4:1. Sits above the navy header so it's the first
+   thing seen, sign-in page included. */
+.site-banner {
+  background: var(--maroon); color: #fff; padding: 8px 28px;
+  font-size: 13px; font-weight: 700; letter-spacing: .04em; text-align: center;
+}
+
+/* ---------- Administration sub-sections ---------- */
+.subnav { display: flex; flex-wrap: wrap; gap: 0; border-bottom: 2px solid var(--ink); margin-top: 16px; }
+.subnav a {
+  padding: 12px 18px 9px; border-bottom: 4px solid transparent; color: var(--grey);
+  font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; text-decoration: none;
+}
+.subnav a:hover { background: var(--surface); color: var(--ink); }
+.subnav a[aria-current="page"] { border-bottom-color: var(--blue); color: var(--ink); }
+
+.admin-section { padding: 24px 0; border-bottom: 2px solid var(--rule); }
+.admin-section__intro { margin: 0 0 16px; font-size: 13px; color: var(--grey); max-width: 80ch; }
+.admin-form { max-width: 640px; }
+.inline-form { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; max-width: 640px; }
+.plain-fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.plain-fieldset > legend { margin-bottom: 6px; }
+.field-hint { font-size: 12px; color: var(--grey); }
+.table-scroll { overflow-x: auto; }
+.table-scroll:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.nowrap { white-space: nowrap; }
+.muted { color: var(--grey); }
+.small { font-size: 12px; }
+.text-danger { color: var(--maroon); }
+.text-ok { color: var(--green-ink); }
+.plain-list { margin: 0 0 12px; padding-left: 18px; font-size: 13px; }
+.plain-list li { margin: 4px 0; }
+.btn-text.text-danger { color: var(--maroon); }
+.link-list { margin: 0 0 16px; padding-left: 18px; font-size: 13px; columns: 3 220px; }
+
+.logo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+.logo-card { border: 2px solid var(--ink); background: #fff; padding: 18px; }
+.logo-card__title { margin: 0 0 6px; font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+/* Preview area: 24px padding = the style guide's .25" clear space. */
+.logo-card__preview { padding: 24px; border: 1px solid var(--rule); display: flex; align-items: center; justify-content: center; min-height: 120px; }
+.logo-card__preview img { max-width: 100%; max-height: 110px; height: auto; }
+.check-columns { columns: 3 180px; margin: 8px 0 0 30px; }
+.check-inline { display: flex; align-items: center; gap: 8px; padding: 4px 0; break-inside: avoid; text-transform: none; letter-spacing: 0; font-size: 13px; color: var(--ink); }
+summary.panel-heading::marker, details > summary.btn-text::marker { color: var(--navy); }
+
+/* ---------- Audit log ---------- */
+.audit-filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; padding: 18px 0; border-bottom: 2px solid var(--rule); }
+.audit-filters .field { flex: 1; min-width: 150px; }
+.audit-filters__actions { display: flex; gap: 14px; align-items: center; padding-bottom: 4px; }
+.audit-summary { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 0; }
+.audit-diff { margin-top: 6px; }
+.audit-diff__cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 6px; }
+.audit-diff pre { margin: 4px 0 0; padding: 8px 10px; background: var(--ground); border: 1px solid var(--rule); font-size: 12px; white-space: pre-wrap; word-break: break-word; }
+.pager { display: flex; gap: 20px; align-items: center; justify-content: center; padding: 20px 0; }
+.pager a { font-weight: 700; color: var(--navy); }
+
+/* ---------- My account ---------- */
+a.app-header__user-name { color: #fff; text-decoration: none; }
+a.app-header__user-name:hover, a.app-header__user-name[aria-current="page"] { text-decoration: underline; }
+.setup-steps { margin: 0 0 14px; padding-left: 20px; font-size: 14px; }
+.setup-steps li { margin-bottom: 10px; }
+.qr { display: block; margin: 10px 0; background: #fff; border: 1px solid var(--rule); }
+.setup-key { font-size: 15px; letter-spacing: .08em; background: var(--ground); padding: 4px 8px; display: inline-block; margin: 4px 0; }
+.recovery-codes { list-style: none; margin: 0 0 14px; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 6px 16px; }
+.recovery-codes code { font-size: 16px; letter-spacing: .06em; }
+@media print {
+  /* Printing from My account prints just the recovery codes. */
+  body:has(#codes-panel) main > *:not(#two-step), body:has(#codes-panel) #two-step > *:not(#codes-panel) { display: none !important; }
+  #codes-panel button { display: none; }
+}
+
+/* Print-preview toolbar sits on the dark "desk" (#4A4A4A): white text/outline
+   buttons there (8.9:1). The navy primary button gets a white edge, since navy
+   against the desk is too close to see where the button is (WCAG 1.4.11). */
+.print-toolbar .btn-primary { box-shadow: 0 0 0 2px #fff; }
+.print-toolbar *:focus-visible { outline-color: #fff; }
+.grid-cell.is-retired { background: var(--ground); color: var(--grey); }
+
+/* ---------- Budget figures on the request form ---------- */
+/* Grey on white 6.4:1; over-budget switches to maroon (9.4:1) and adds
+   "over by" in the text, so it isn't conveyed by colour alone. */
+.line-budget { font-size: 12px; color: var(--grey); margin-top: 4px; min-height: 1em; }
+.line-budget.is-over { color: var(--maroon); font-weight: 700; }
+.budget-summary { margin-top: 18px; border-top: 2px solid var(--rule); padding-top: 12px; }
+.budget-summary > summary { cursor: pointer; font-size: 13px; font-weight: 700; color: var(--navy); }
+.budget-summary table.data { margin-top: 10px; }
+/* Series heading rows (83 / 84 / 85 …) inside lists and tables. */
+tr.series-row th { background: var(--ground); text-align: left; font-size: 11px; letter-spacing: .12em; color: var(--ink); padding: 6px 10px; }
+.series-heading { font-size: 11px; font-weight: 700; letter-spacing: .12em; color: var(--ink); margin: 10px 0 2px; padding-bottom: 2px; border-bottom: 1px solid var(--rule); }
+.class-amount { display: flex; align-items: center; gap: 10px; break-inside: avoid; padding: 2px 0; }
+.budget-form { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+.budget-form input { padding: 6px 8px; font-size: 13px; }
+/* Budget note spans the whole line row, under the class / line / amount fields. */
+.line-row .line-budget { grid-column: 1 / -1; margin-top: -4px; }
+.line-row .line-budget:empty { display: none; }
+/* "or enter a code" between the security-key button and the code box. */
+.or-divider { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--grey); }
+.or-divider::before, .or-divider::after { content: ""; flex: 1; border-top: 1px solid var(--rule); }
+/* "Two-step sign-in is required" on My profile — ink on sand 12:1, maroon rule. */
+.notice-required { background: var(--sand); border-left: 4px solid var(--maroon); padding: 12px 16px; margin: 0 0 16px; font-size: 13px; color: var(--ink); }

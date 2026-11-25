@@ -1,0 +1,20 @@
+{# Sent from Administration > Email > "Send a test email". #}
+{% extends "mail/_layout.html.twig" %}
+{% import "mail/_macros.html.twig" as m %}
+{% block subject %}Test email from the Expenditure &amp; Encumbrance Request System{% endblock %}
+{% block preheader %}If you can read this, outgoing email is working.{% endblock %}
+{% block body %}
+{{ m.heading('Outgoing email is working') }}
+{{ m.p('This test was sent by ' ~ (sent_by|e) ~ ' from Administration &gt; Email. If the logo shows above and this arrived in your inbox (not spam), the system&rsquo;s email setup is good.') }}
+{{ m.details({'Sent': sent_at, 'From': from_line, 'Email test mode': mode_label}) }}
+{{ m.button(cta_url|default(base_url), 'Open the system') }}
+{% endblock %}
+{% block plain %}{% autoescape false %}Outgoing email is working
+
+This test was sent by {{ sent_by }} from Administration > Email. If it arrived in your inbox (not spam), the system's email setup is good.
+
+Sent: {{ sent_at }}
+From: {{ from_line }}
+Email test mode: {{ mode_label }}
+
+{{ cta_url|default(base_url) }}{% endautoescape %}{% endblock %}

@@ -1,0 +1,22 @@
+{% extends "mail/_layout.html.twig" %}
+{% import "mail/_macros.html.twig" as m %}
+{% block subject %}Your monthly recurring expenses are ready to confirm{% endblock %}
+{% block preheader %}{{ line_count }} recurring lines for {{ period_label }} are waiting. Please submit by the 10th.{% endblock %}
+{% block body %}
+{{ m.heading('Recurring expenses for ' ~ period_label) }}
+{{ m.p('Your recurring lines are waiting on the batch sheet. Confirm the amounts that are unchanged, adjust anything that moved, and skip what shouldn&rsquo;t go out.') }}
+{{ m.details({'Lines on your sheet': line_count, 'Last month’s total': last_month_total, 'Submit by': 'the 10th of ' ~ period_label}) }}
+{{ m.p('Submitting by the 10th lets the bookkeeper post on schedule.') }}
+{{ m.button(cta_url|default(base_url), 'Open the batch sheet') }}
+{% endblock %}
+{% block plain %}{% autoescape false %}Recurring expenses for {{ period_label }}
+
+Your recurring lines are waiting on the batch sheet. Confirm the amounts that are unchanged, adjust anything that moved, and skip what shouldn't go out.
+
+Lines on your sheet: {{ line_count }}
+Last month's total:  {{ last_month_total }}
+Submit by:           the 10th of {{ period_label }}
+
+Submitting by the 10th lets the bookkeeper post on schedule.
+
+Open the batch sheet: {{ cta_url|default(base_url) }}{% endautoescape %}{% endblock %}

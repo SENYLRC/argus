@@ -1,0 +1,28 @@
+{% extends "mail/_layout.html.twig" %}
+{% import "mail/_macros.html.twig" as m %}
+{% block subject %}Your expenditure request {{ request_number }} was not approved{% endblock %}
+{% block preheader %}{{ approver_name }} did not approve {{ request_number }} ({{ payable_to }}, {{ amount }}). Reason inside.{% endblock %}
+{% block body %}
+{{ m.heading('Request ' ~ request_number ~ ' was not approved') }}
+{{ m.p((approver_name|e) ~ ' reviewed your request and did not approve it.') }}
+{{ m.details({'Request': request_number, 'Payable to': payable_to, 'Amount': amount, 'Reviewed by': approver_name}) }}
+{{ m.subheading('Reason given') }}
+{{ m.quote(reason) }}
+{{ m.p('The request stays in your history. You can duplicate it into a new request at any time, or reply to this email to ask ' ~ (approver_name|e) ~ ' about it.') }}
+{{ m.button(cta_url|default(base_url), 'View the request') }}
+{% endblock %}
+{% block plain %}{% autoescape false %}Request {{ request_number }} was not approved
+
+{{ approver_name }} reviewed your request and did not approve it.
+
+Request:     {{ request_number }}
+Payable to:  {{ payable_to }}
+Amount:      {{ amount }}
+Reviewed by: {{ approver_name }}
+
+Reason given:
+"{{ reason }}"
+
+The request stays in your history. You can duplicate it into a new request at any time, or reply to this email to ask {{ approver_name }} about it.
+
+View the request: {{ cta_url|default(base_url) }}{% endautoescape %}{% endblock %}

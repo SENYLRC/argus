@@ -1,0 +1,57 @@
+{% extends 'layout.twig' %}
+{% block title %}File integrity — Administration{% endblock %}
+{% block content %}
+<main id="main" class="wide">
+  <div class="page-head" style="border-bottom:2px solid var(--rule);">
+    <div>
+      <h1>File integrity</h1>
+      <p>Fingerprints the application’s code files and reports anything added, changed or removed since the last approved baseline. Scans nightly and emails Admin / Tech when something new turns up.</p>
+    </div>
+  </div>
+  {% include 'admin/_nav.twig' %}
+
+  <section class="admin-section" aria-labelledby="st-h">
+    <h2 class="section-heading" id="st-h">Last scan</h2>
+    {% if r.status == 'none' %}
+    <p class="notice-required" role="status">No baseline yet. Choose <strong>Scan now</strong> to take one.</p>
+    {% else %}
+    <p style="font-size:16px;margin:0 0 4px;">
+      {% if r.status == 'clean' %}<strong class="text-ok">No changes</strong>{% else %}<strong class="text-danger">Changes found</strong>{% endif %}
+      <span class="muted">— {{ r.time|date('M j, Y g:i A') }}, {{ r.total }} files watched{% if r.note %}. {{ r.note }}{% endif %}</span>
+    </p>
+    {% endif %}
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:14px;">
+      <form method="post" action="/admin/integrity/scan">{{ csrf_field|raw }}<button type="submit" class="btn btn-primary">Scan now</button></form>
+      <form method="post" action="/admin/integrity/accept" data-confirm="Accept every file as it is now? The current state becomes the new baseline.">{{ csrf_field|raw }}<button type="submit" class="btn btn-outline">Accept changes</button></form>
+    </div>
+    <p class="field-hint" style="margin:10px 0 0;">Deploying with <code>deploy/install.sh</code> re-takes the baseline automatically.</p>
+
+    {% for title, list in {'Modified files': r.modified, 'New files': r.added, 'Deleted files': r.deleted, 'Code files inside storage (should not exist)': r.storage_code} %}
+    {% if list %}
+    <h3 style="margin:22px 0 6px;font-size:15px;">{{ title }} ({{ list|length }})</h3>
+    <ul class="plain-list">{% for f in list %}<li><code>{{ f }}</code></li>{% endfor %}</ul>
+    {% endif %}
+    {% endfor %}
+  </section>
+
+  <form method="post" action="/admin/integrity/settings" class="admin-section admin-form" aria-labelledby="set-h" style="max-width:720px;border-bottom:0;">
+    {{ csrf_field|raw }}
+    <h2 class="section-heading" id="set-h">Settings</h2>
+    <label class="choice">
+      <input type="checkbox" name="enabled" value="1" {{ enabled ? 'checked' }}>
+      <span><span class="choice__label">Scan automatically every night</span></span>
+    </label>
+    <div class="field" style="margin-top:12px;">
+      <label for="fm-ext">File types to watch</label>
+      <input id="fm-ext" type="text" name="extensions" value="{{ extensions }}" aria-describedby="fm-ext-h" required>
+      <span class="field-hint" id="fm-ext-h">Extensions separated by commas. Everything in <code>bin/</code> is watched whatever its name.</span>
+    </div>
+    <div class="field" style="margin-top:12px;">
+      <label for="fm-ex">Paths to skip</label>
+      <textarea id="fm-ex" name="exclude" rows="3" aria-describedby="fm-ex-h" spellcheck="false">{{ exclude }}</textarea>
+      <span class="field-hint" id="fm-ex-h">One path per line, relative to the application folder (for example <code>vendor/some/package</code>).</span>
+    </div>
+    <button type="submit" class="btn btn-primary" style="margin-top:14px;">Save settings</button>
+  </form>
+</main>
+{% endblock %}

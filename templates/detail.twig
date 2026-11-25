@@ -1,0 +1,143 @@
+{% extends 'layout.twig' %}
+{% block title %}{{ request.number }} — {{ request.payable_to }}{% endblock %}
+{% block content %}
+<main id="main" class="wide">
+  <a href="/requests" class="btn-text noprint" style="padding:0 0 14px;display:inline-block;">&#8592; Back to list</a>
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:24px;flex-wrap:wrap;border-bottom:2px solid var(--ink);padding-bottom:16px;">
+    <div>
+      <div class="eyebrow">{{ request.kind|capitalize }} · {{ request.number }}</div>
+      <h1 style="margin:6px 0 0;font-size:30px;font-weight:700;">{{ request.payable_to }}</h1>
+      <div style="margin-top:8px;color:var(--grey);font-size:13px;">Submitted by {{ request.requester_name }} on {{ request.submitted }}</div>
+    </div>
+    <div style="text-align:right;">
+      <span class="badge badge-{{ request.status }}">{{ request.status_label }}</span>
+      <div style="font-size:34px;font-weight:700;margin-top:10px;">{{ request.total_formatted }}</div>
+    </div>
+  </div>
+
+  <div class="detail-columns">
+    <section>
+      <h2 class="section-heading">Request</h2>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <caption class="visually-hidden">Budget lines for this request</caption>
+        <thead>
+          <tr>
+            <th scope="col" class="visually-hidden">Budget line</th>
+            <th scope="col" class="visually-hidden">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for l in request.lines %}
+        <tr style="border-bottom:2px solid var(--rule);">
+          <td style="padding:11px 0;">
+            <div style="font-weight:700;">{{ l.line_code|default(l.free_text) }}</div>
+            <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--navy);">{{ l.class_name }}</div>
+          </td>
+          <td style="padding:11px 0;text-align:right;font-weight:700;white-space:nowrap;">{{ l.amount_formatted }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      <dl class="kv">
+        <dt>Fiscal year</dt><dd>{{ request.fiscal_year ? 'FY ' ~ request.fiscal_year : '—' }}</dd>
+        <dt>Type</dt><dd>{{ request.kind == 'encumbrance' ? 'Encumbrance (money set aside, paid later)' : 'Expenditure (pay now)' }}</dd>
+        <dt>Date needed</dt><dd>{{ request.date_needed_formatted|default('—') }}</dd>
+        <dt>Payment</dt><dd>{{ request.payment_label }}</dd>
+        <dt>Remit to</dt><dd>{{ request.remit_address|default('—') }}</dd>
+        <dt>Recurring</dt><dd>{{ request.is_recurring ? 'Yes — part of the monthly batch' : 'One-off request' }}</dd>
+        <dt>Justification</dt><dd>{{ request.justification|default('—') }}</dd>
+        <dt>Attachment</dt>
+        <dd>
+          {% if request.attachments|length %}
+            <a href="/attachment.php?id={{ request.attachments[0].id }}" class="btn-text" style="border-bottom:2px solid var(--navy);text-transform:none;letter-spacing:normal;font-weight:400;padding:0;">{{ request.attachments[0].orig_name }}</a>
+          {% else %}
+            no file attached
+          {% endif %}
+        </dd>
+      </dl>
+    </section>
+
+    <section>
+      <h2 class="section-heading">History &amp; sign-off</h2>
+      <ol class="timeline">
+        {% for t in timeline %}
+        <li>
+          <div class="dot dot-{{ t.dot }}"></div>
+          <div>
+            <div style="font-weight:700;font-size:13px;">{{ t.title }}</div>
+            <div style="font-size:12px;color:var(--grey);">{{ t.who }} · {{ t.when }}</div>
+            {% if t.note %}<div class="timeline-note">{{ t.note }}</div>{% endif %}
+            {% if t.signature %}
+              <div class="timeline-sig">
+                <div class="sig-preview">{{ t.signature }}</div>
+                <div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--grey);margin-top:6px;">Electronically signed · {{ t.when }} · PIN verified</div>
+                <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--navy);margin-top:3px;">{{ t.sigFile|default('signature image on file') }}</div>
+              </div>
+            {% endif %}
+          </div>
+        </li>
+        {% endfor %}
+      </ol>
+    </section>
+
+    <section class="noprint">
+      <h2 class="section-heading">Actions — {{ role_label }}</h2>
+
+      {% if can_approve %}
+      <div class="panel">
+        <div class="panel-heading">Executive Director sign-off</div>
+        <form method="post" action="/requests/{{ request.id }}/approve">
+          {{ csrf_field|raw }}
+          <div class="field">
+            <label for="sig">Type your full name</label>
+            <input id="sig" type="text" name="typed_name" placeholder="Full legal name">
+          </div>
+          <div class="field" style="margin-top:14px;">
+            <label for="pin">Account PIN</label>
+            <input id="pin" type="password" name="pin" placeholder="••••" style="letter-spacing:.3em;max-width:140px;" inputmode="numeric" maxlength="4">
+          </div>
+          <div style="margin-top:16px;border-top:2px solid var(--rule);padding-top:14px;">
+            {% include 'partials/_signature_picker.twig' %}
+          </div>
+          <button type="submit" class="btn btn-success btn-full" style="margin-top:16px;">Sign &amp; approve</button>
+        </form>
+        <button type="button" class="btn btn-danger-outline btn-full" style="margin-top:10px;" data-toggle-reject>Reject</button>
+      </div>
+
+      <div class="panel panel-danger" hidden data-reject-panel>
+        <form method="post" action="/requests/{{ request.id }}/reject">
+          {{ csrf_field|raw }}
+          <label for="reject-reason" class="panel-heading" style="color:var(--maroon);display:block;">Reason for rejection</label>
+          <textarea id="reject-reason" name="reason" rows="3" placeholder="This is emailed to the requester" style="width:100%;"></textarea>
+          <button type="submit" class="btn btn-danger btn-full" style="margin-top:12px;">Reject &amp; email requester</button>
+        </form>
+      </div>
+      <script>
+        document.querySelector('[data-toggle-reject]')?.addEventListener('click', function () {
+          document.querySelector('[data-reject-panel]').hidden = false;
+          this.hidden = true;
+        });
+      </script>
+      {% endif %}
+
+      {% if can_edit %}
+      <div class="panel">
+        <div class="panel-heading">Your request</div>
+        <p style="margin:0 0 14px;font-size:12px;color:var(--grey);">Still awaiting approval, so you can change or withdraw it. Edits re-notify the approvers.</p>
+        <a href="/requests/{{ request.id }}/edit" class="btn btn-outline btn-full">Edit request</a>
+        <form method="post" action="/requests/{{ request.id }}/delete" style="margin-top:10px;" data-confirm="Delete this request? This can't be undone.">
+          {{ csrf_field|raw }}
+          <button type="submit" class="btn btn-danger-outline btn-full">Delete request</button>
+        </form>
+      </div>
+      {% endif %}
+
+      {% if locked_note %}
+        <div class="locked-note">{{ locked_note }}</div>
+      {% endif %}
+
+      <a href="/requests/{{ request.id }}/record" class="btn btn-ink btn-full">View / print PDF record</a>
+    </section>
+  </div>
+</main>
+{% endblock %}

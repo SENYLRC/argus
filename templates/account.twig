@@ -1,0 +1,273 @@
+{% extends 'layout.twig' %}
+{% block title %}My profile{% endblock %}
+{% block content %}
+<main id="main" class="narrow">
+  <div class="page-head" style="border-bottom:2px solid var(--rule);">
+    <div>
+      <h1>My profile</h1>
+      <p>{{ me.name }} · {{ me.email }} · {{ role_label_me }}. Your role and budget lines are set by Admin / Tech.</p>
+    </div>
+  </div>
+
+  {# ---------- Name & title ---------- #}
+  <section id="profile" class="admin-section" aria-labelledby="pr-h">
+    <h2 class="section-heading" id="pr-h">Name &amp; job title</h2>
+    {% set pre = profile_errors|default({}) %}
+    <form method="post" action="/account/profile" class="admin-form" novalidate>
+      {{ csrf_field|raw }}
+      <div class="field">
+        <label for="pf-name">Full name</label>
+        <input id="pf-name" type="text" name="name" value="{{ me.name }}" maxlength="120" required autocomplete="name"
+               {% if pre.name is defined %}aria-invalid="true" aria-describedby="err-pf-name"{% endif %}>
+        {% if pre.name is defined %}<span class="field-error" id="err-pf-name" role="alert">{{ pre.name }}</span>{% endif %}
+      </div>
+      <div class="field" style="margin-top:14px;">
+        <label for="pf-title">Job title</label>
+        <input id="pf-title" type="text" name="title" value="{{ me.title }}" maxlength="160" autocomplete="organization-title"
+               {% if pre.title is defined %}aria-invalid="true" aria-describedby="err-pf-title"{% endif %}>
+        {% if pre.title is defined %}<span class="field-error" id="err-pf-title" role="alert">{{ pre.title }}</span>{% endif %}
+      </div>
+      <button type="submit" class="btn btn-primary" style="margin-top:16px;">Save</button>
+    </form>
+  </section>
+
+  {# ---------- Sign-in email ---------- #}
+  <section id="email" class="admin-section" aria-labelledby="em-h">
+    <h2 class="section-heading" id="em-h">Sign-in email</h2>
+    <p class="admin-section__intro">You sign in with <strong>{{ me.email }}</strong>, and notices go there. A new address only takes effect after you open the confirmation link we send to it; your current address gets a notice.</p>
+    {% if pending_email %}
+    <div class="locked-note" role="status">
+      Waiting for confirmation: a link was sent to <strong>{{ pending_email.new_email }}</strong> (valid until {{ pending_email.expires_at|date('M j, g:i A') }}).
+      <form method="post" action="/account/email/cancel" style="display:inline;margin-left:8px;">
+        {{ csrf_field|raw }}
+        <button type="submit" class="btn-text">Cancel change</button>
+      </form>
+    </div>
+    {% endif %}
+    {% set ee = email_errors|default({}) %}
+    <form method="post" action="/account/email" class="admin-form" novalidate>
+      {{ csrf_field|raw }}
+      <div class="field">
+        <label for="new_email">New email address</label>
+        <input id="new_email" type="email" name="new_email" value="{{ new_email_value|default('') }}" maxlength="190" required autocomplete="email"
+               {% if ee.new_email is defined %}aria-invalid="true" aria-describedby="err-new-email"{% endif %}>
+        {% if ee.new_email is defined %}<span class="field-error" id="err-new-email" role="alert">{{ ee.new_email }}</span>{% endif %}
+      </div>
+      <div class="field" style="margin-top:14px;">
+        <label for="em-pw">Your password</label>
+        <input id="em-pw" type="password" name="current_password" autocomplete="current-password" required
+               {% if ee.email_password is defined %}aria-invalid="true" aria-describedby="err-em-pw"{% endif %}>
+        {% if ee.email_password is defined %}<span class="field-error" id="err-em-pw" role="alert">{{ ee.email_password }}</span>{% endif %}
+      </div>
+      <button type="submit" class="btn btn-primary" style="margin-top:16px;">Send confirmation link</button>
+    </form>
+  </section>
+
+  {# ---------- Change password ---------- #}
+  <section id="password" class="admin-section" aria-labelledby="pw-h">
+    <h2 class="section-heading" id="pw-h">Change password</h2>
+    <p class="admin-section__intro">{{ password_changed ? 'Last changed ' ~ password_changed ~ '. ' : '' }}Changing it signs you out everywhere else and emails you a notice.</p>
+    {% set pe = password_errors|default({}) %}
+    {% if pe %}
+    <div class="field-error" role="alert" tabindex="-1" id="pw-errors" style="margin-bottom:12px;">
+      <strong>Password not changed:</strong>
+      <ul style="margin:4px 0 0;padding-left:18px;">{% for e in pe %}<li>{{ e }}</li>{% endfor %}</ul>
+    </div>
+    <script>document.getElementById('pw-errors').focus();</script>
+    {% endif %}
+    <form method="post" action="/account/password" class="admin-form" novalidate>
+      {{ csrf_field|raw }}
+      {# Hidden username helps password managers save the right entry. #}
+      <input type="text" name="username" value="{{ me.email }}" autocomplete="username" hidden>
+      <div class="field">
+        <label for="current_password">Current password</label>
+        <input id="current_password" type="password" name="current_password" autocomplete="current-password" required
+               {% if pe.current_password is defined %}aria-invalid="true" aria-describedby="err-current"{% endif %}>
+        {% if pe.current_password is defined %}<span class="field-error" id="err-current">{{ pe.current_password }}</span>{% endif %}
+      </div>
+      <div class="field" style="margin-top:14px;">
+        <label for="new_password">New password</label>
+        <input id="new_password" type="password" name="new_password" autocomplete="new-password" required
+               aria-describedby="pw-hint{% if pe.new_password is defined %} err-new{% endif %}" {% if pe.new_password is defined %}aria-invalid="true"{% endif %}>
+        <span class="field-hint" id="pw-hint">{{ password_hint }}</span>
+        {% if pe.new_password is defined %}<span class="field-error" id="err-new">{{ pe.new_password }}</span>{% endif %}
+      </div>
+      <div class="field" style="margin-top:14px;">
+        <label for="new_password_confirm">New password again</label>
+        <input id="new_password_confirm" type="password" name="new_password_confirm" autocomplete="new-password" required
+               {% if pe.new_password_confirm is defined %}aria-invalid="true" aria-describedby="err-confirm"{% endif %}>
+        {% if pe.new_password_confirm is defined %}<span class="field-error" id="err-confirm">{{ pe.new_password_confirm }}</span>{% endif %}
+      </div>
+      <button type="submit" class="btn btn-primary" style="margin-top:16px;">Change password</button>
+    </form>
+  </section>
+
+  {# ---------- Two-step sign-in ---------- #}
+  <section id="two-step" class="admin-section" aria-labelledby="tf-h" style="border-bottom:0;">
+    <h2 class="section-heading" id="tf-h">Two-step sign-in <span class="badge {{ two_factor_on ? 'badge-complete' : 'badge-role-staff' }}" style="margin-left:8px;vertical-align:middle;">{{ two_factor_on ? 'On' : 'Off' }}</span></h2>
+    {% if two_factor_required and not two_factor_on %}
+    <div class="notice-required" role="alert">
+      <strong>Two-step sign-in is required for your account.</strong> Set up an authenticator app or add a security key below — the rest of the system opens once one is on.
+    </div>
+    {% elseif two_factor_required %}
+    <p class="admin-section__intro"><strong>Required for your account</strong> by Admin / Tech — you can add or replace methods, but not turn it off.</p>
+    {% endif %}
+    <p class="admin-section__intro">{{ two_factor_required ? 'When' : 'Optional. When' }} it’s on, signing in also asks for a second step — a 6-digit code from an authenticator app (Microsoft Authenticator, Google Authenticator, Authy, 1Password…) or a touch of a security key such as a YubiKey — so a stolen password alone isn’t enough. Use either or both.</p>
+
+    {% if new_recovery_codes is defined %}
+    <div class="panel" role="status" tabindex="-1" id="codes-panel" style="border-color:var(--gold);">
+      <div class="panel-heading">{{ just_enabled|default(false) ? 'Two-step sign-in is on — save your recovery codes' : 'Your new recovery codes' }}</div>
+      <p style="margin:0 0 10px;font-size:13px;">Each code works <strong>once</strong>, instead of an app code, if you lose your phone. This is the only time they’re shown — print them or store them in a password manager. {{ just_enabled|default(false) ? '' : 'Your old codes no longer work.' }}</p>
+      <ul class="recovery-codes" aria-label="Recovery codes">
+        {% for c in new_recovery_codes %}<li><code>{{ c }}</code></li>{% endfor %}
+      </ul>
+      <button type="button" class="btn btn-outline btn-small" onclick="window.print()">Print codes</button>
+    </div>
+    <script>document.getElementById('codes-panel').focus();</script>
+    {% endif %}
+
+    {# ---- Authenticator app ---- #}
+    <h3 class="section-heading" style="margin-top:20px;">Authenticator app</h3>
+    {% if has_app %}
+      <p style="font-size:13px;margin:0 0 8px;">On since {{ two_factor_since }}.</p>
+      <details class="panel">
+        <summary class="panel-heading" style="cursor:pointer;margin:0;">Remove the authenticator app</summary>
+        <form method="post" action="/account/2fa/app/remove" class="admin-form" style="margin-top:12px;" data-confirm="Remove the authenticator app from two-step sign-in?">
+          {{ csrf_field|raw }}
+          <div class="field">
+            <label for="app-pw">Your password</label>
+            <input id="app-pw" type="password" name="current_password" autocomplete="current-password" required>
+          </div>
+          <button type="submit" class="btn btn-danger-outline btn-small" style="margin-top:12px;">Remove app</button>
+        </form>
+      </details>
+    {% elseif setup %}
+      <div class="panel">
+        <div class="panel-heading">Set up your authenticator app</div>
+        <ol class="setup-steps">
+          <li>Open your authenticator app and add an account (usually a <strong>+</strong> button).</li>
+          <li>Scan this code:
+            <img src="{{ setup.qr }}" width="200" height="200" class="qr" alt="QR code for setting up two-step sign-in. If you can’t scan it, type the setup key shown below into your app instead.">
+            Can’t scan? Choose “enter a setup key” in the app and type:<br>
+            <code class="setup-key">{{ setup.secret }}</code><br>
+            <span class="small muted">Account: {{ me.email }} · type: time-based</span>
+          </li>
+          <li>Enter the 6-digit code the app now shows:</li>
+        </ol>
+        <form method="post" action="/account/2fa/enable" class="inline-form" novalidate>
+          {{ csrf_field|raw }}
+          <div class="field" style="flex:0 1 200px;">
+            <label for="setup-code">Code from the app</label>
+            <input id="setup-code" type="text" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" maxlength="7" required
+                   {% if setup_error is defined %}aria-invalid="true" aria-describedby="setup-err"{% endif %}>
+          </div>
+          <button type="submit" class="btn btn-primary">Turn on</button>
+        </form>
+        {% if setup_error is defined %}<p class="field-error" id="setup-err" role="alert">{{ setup_error }}</p>{% endif %}
+      </div>
+    {% else %}
+      <form method="post" action="/account/2fa/start">
+        {{ csrf_field|raw }}
+        <button type="submit" class="btn btn-outline">Set up an authenticator app</button>
+      </form>
+    {% endif %}
+
+    {# ---- Security keys (YubiKey etc.) ---- #}
+    <h3 class="section-heading" style="margin-top:24px;">Security keys</h3>
+    <p class="admin-section__intro">A YubiKey (or other FIDO2 security key): after your password, plug it in — or hold it to your phone — and touch it. Passkeys on your computer or phone work the same way. Add two if you can, so losing one doesn’t lock you out.</p>
+    {% if security_keys %}
+    <table class="data" style="margin-bottom:14px;">
+      <caption>Your security keys</caption>
+      <thead><tr><th scope="col">Name</th><th scope="col">Added</th><th scope="col">Last used</th><th scope="col"><span class="visually-hidden">Remove</span></th></tr></thead>
+      <tbody>
+        {% for k in security_keys %}
+        <tr>
+          <td style="font-weight:700;">{{ k.name }}</td>
+          <td class="nowrap muted small">{{ k.created_at|date('M j, Y') }}</td>
+          <td class="nowrap muted small">{{ k.last_used_at ? k.last_used_at|date('M j, Y g:i A') : 'Not yet' }}</td>
+          <td class="nowrap">
+            <details>
+              <summary class="btn-text text-danger" style="cursor:pointer;">Remove</summary>
+              <form method="post" action="/account/keys/{{ k.id }}/remove" style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                {{ csrf_field|raw }}
+                <label class="visually-hidden" for="rk-{{ k.id }}">Your password, to remove {{ k.name }}</label>
+                <input id="rk-{{ k.id }}" type="password" name="current_password" placeholder="Your password" autocomplete="current-password" required style="width:180px;">
+                <button type="submit" class="btn btn-danger-outline btn-small">Remove {{ k.name }}</button>
+              </form>
+            </details>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+    <details class="panel">
+      <summary class="panel-heading" style="cursor:pointer;margin:0;">Add a security key or passkey</summary>
+      <form data-webauthn-register class="admin-form" style="margin-top:12px;" novalidate>
+        {{ csrf_field|raw }}
+        <fieldset class="plain-fieldset" style="margin-bottom:12px;">
+          <legend class="field-label">What are you adding?</legend>
+          <label class="choice">
+            <input type="radio" name="kind" value="key" checked>
+            <span><span class="choice__label">YubiKey or other security key</span>
+            <span class="choice__hint">Plug it in (or hold it to your phone) and touch it. Your browser goes straight to the security-key prompt.</span></span>
+          </label>
+          <label class="choice">
+            <input type="radio" name="kind" value="passkey">
+            <span><span class="choice__label">Passkey (this computer, your phone or a password manager)</span>
+            <span class="choice__hint">Windows Hello, Touch ID / Face ID, a phone, or a password manager such as Bitwarden (unlocked, with passkeys switched on). Firefox on Linux has no built-in passkey, so it needs Bitwarden or a security key.</span></span>
+          </label>
+        </fieldset>
+        <div class="field">
+          <label for="key-name">Name for this key</label>
+          <input id="key-name" type="text" name="name" maxlength="80" placeholder="e.g. YubiKey 5 NFC (keychain) or Work laptop" required>
+        </div>
+        <div class="field" style="margin-top:12px;">
+          <label for="key-pw">Your password</label>
+          <input id="key-pw" type="password" name="current_password" autocomplete="current-password" required>
+        </div>
+        <button type="submit" class="btn btn-primary" style="margin-top:14px;">Add key</button>
+        <p class="field-hint" data-webauthn-status role="status" aria-live="polite" style="margin:10px 0 0;"></p>
+      </form>
+    </details>
+
+    {% if two_factor_on %}
+      {# ---- Recovery codes & turn off (turn-off hidden while it's required) ---- #}
+      <h3 class="section-heading" style="margin-top:24px;">Recovery codes</h3>
+      <p style="font-size:13px;margin:0 0 8px;"><strong>{{ recovery_left }}</strong> unused recovery code{{ recovery_left == 1 ? '' : 's' }} left — each signs you in once if you don’t have your phone or key.</p>
+      <details class="panel">
+        <summary class="panel-heading" style="cursor:pointer;margin:0;">Make new recovery codes</summary>
+        <form method="post" action="/account/2fa/recovery-codes" class="admin-form" style="margin-top:12px;">
+          {{ csrf_field|raw }}
+          <div class="field">
+            <label for="rc-pw">Your password</label>
+            <input id="rc-pw" type="password" name="current_password" autocomplete="current-password" required
+                   {% if codes_error is defined %}aria-invalid="true" aria-describedby="rc-err"{% endif %}>
+            {% if codes_error is defined %}<span class="field-error" id="rc-err" role="alert">{{ codes_error }}</span>{% endif %}
+          </div>
+          <button type="submit" class="btn btn-outline btn-small" style="margin-top:12px;">Make new codes</button>
+        </form>
+      </details>
+
+      {% if not two_factor_required %}
+      <details class="panel" {{ disable_error is defined ? 'open' }}>
+        <summary class="panel-heading" style="cursor:pointer;margin:0;">Turn off two-step sign-in completely</summary>
+        <form method="post" action="/account/2fa/disable" class="admin-form" style="margin-top:12px;" data-confirm="Turn off two-step sign-in? This removes your authenticator app, every security key and your recovery codes.">
+          {{ csrf_field|raw }}
+          <div class="field">
+            <label for="off-pw">Your password</label>
+            <input id="off-pw" type="password" name="current_password" autocomplete="current-password" required
+                   {% if disable_error is defined %}aria-invalid="true" aria-describedby="off-err"{% endif %}>
+            {% if disable_error is defined %}<span class="field-error" id="off-err" role="alert">{{ disable_error }}</span>{% endif %}
+          </div>
+          <button type="submit" class="btn btn-danger-outline btn-small" style="margin-top:12px;">Turn off</button>
+        </form>
+      </details>
+      {% endif %}
+    {% endif %}
+
+    <p class="admin-section__intro" style="margin-top:18px;">Lost your phone or key and your recovery codes? Admin / Tech can reset your account from Accounts — that clears your password and two-step sign-in (app and keys) and emails you a new set-password link.</p>
+  </section>
+</main>
+<script src="/assets/webauthn.js" defer></script>
+{% endblock %}

@@ -1,0 +1,33 @@
+{% extends 'layout.twig' %}
+{% block title %}Site banner — Administration{% endblock %}
+{% block content %}
+<main id="main" class="wide">
+  <div class="page-head" style="border-bottom:2px solid var(--rule);">
+    <div>
+      <h1>Site banner</h1>
+      <p>A strip across the top of every page — sign-in page included — so nobody mistakes the test site for the real thing.</p>
+    </div>
+  </div>
+  {% include 'admin/_nav.twig' %}
+
+  <section class="admin-section" style="border-bottom:0;" aria-labelledby="banner-h">
+    <h2 class="section-heading" id="banner-h">Test-site banner</h2>
+    <form method="post" action="/admin/site" class="admin-form">
+      {{ csrf_field|raw }}
+      <label class="choice">
+        <input type="checkbox" name="banner_on" value="1" aria-describedby="banner-on-hint" {{ banner_on ? 'checked' }}>
+        <span><span class="choice__label">Show the banner</span><span class="choice__hint" id="banner-on-hint">Turn this off at go-live.</span></span>
+      </label>
+      <div class="field" style="margin-top:16px;">
+        <label for="banner_text">Banner text</label>
+        <input id="banner_text" type="text" name="banner_text" value="{{ banner_text }}" maxlength="200" aria-describedby="banner-text-hint">
+        <span class="field-hint" id="banner-text-hint">Up to 200 characters.</span>
+      </div>
+      <p class="field-label" style="margin:20px 0 6px;">Preview</p>
+      <div class="site-banner" aria-hidden="true">{{ banner_text|default('TEST SITE') }}</div>
+      <button type="submit" class="btn btn-primary" style="margin-top:16px;">Save banner</button>
+    </form>
+    <p class="admin-section__intro" style="margin-top:20px;">Separate from email test mode: the banner only labels the site, it doesn’t stop email. Set that under <a href="/admin/email#test-mode">Email</a>.</p>
+  </section>
+</main>
+{% endblock %}

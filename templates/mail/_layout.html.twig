@@ -1,0 +1,66 @@
+{# Branded HTML email layout, same structure as the linx (SEAL ILL) emails:
+   grey ground, one 600px white card, header bar with the logo, message,
+   footer. Table-based with inline styles only, because that's what email
+   programs (Outlook included) render reliably.
+
+   Header matches the app: navy bar, white official logo, gold rule
+   (style guide v3.0 allows the white logo "over a block of color"). The
+   logo is embedded in the message as cid:argus-logo by MailService —
+   argus.example.org only answers the office IP, so a hosted image would be
+   broken on phones and at home. Previews can pass logo_src instead.
+
+   WCAG: white on navy 8.9:1, ink on white 16:1, grey #5F5F5F on white
+   6.4:1; gold is only ever a rule. Children set {% block subject %},
+   {% block preheader %} (inbox preview line), {% block body %} (HTML, built
+   with the mail/_macros helpers) and {% block plain %} (text part). #}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light only">
+<title>{% block subject %}{% endblock %}</title>
+</head>
+<body style="margin:0;padding:0;background:#F4F3F1;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:#F4F3F1;">{% block preheader %}{% endblock %}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F3F1;">
+  <tr>
+    <td align="center" style="padding:24px 12px;">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#FFFFFF;border:1px solid #E3E0DC;font-family:Arial, Helvetica, sans-serif;font-size:15px;line-height:1.5;color:#201E1D;">
+        <tr>
+          <td style="background:#1C4C7C;padding:24px;border-bottom:4px solid #B58358;">
+            <img src="{{ logo_src|default('cid:argus-logo') }}" width="233" height="50"
+                 alt="Argus"
+                 style="display:block;border:0;height:50px;width:233px;color:#FFFFFF;font-size:16px;font-weight:bold;">
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:10px 24px;background:#FFFFFF;border-bottom:1px solid #E3E0DC;font-size:11px;font-weight:bold;letter-spacing:1.2px;text-transform:uppercase;color:#5F5F5F;">
+            Expenditure &amp; Encumbrance Requests
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:24px;">
+            {% if test_banner_to is defined %}
+            {# Email test mode "redirect" (MailService): who would have received this. #}
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 18px;">
+              <tr><td style="border:2px solid #8D1A3D;padding:10px 14px;font-size:14px;color:#201E1D;">
+                <strong style="color:#8D1A3D;">TEST MODE</strong> — this email would have gone to: {{ test_banner_to }}
+              </td></tr>
+            </table>
+            {% endif %}
+            {% block body %}{% endblock %}
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:14px 24px;border-top:1px solid #E3E0DC;background:#FAFAF9;font-size:12px;line-height:1.5;color:#5F5F5F;">
+            Sent by the Expenditure &amp; Encumbrance Request System &middot; Southeastern NY Library Resources Council<br>
+            21 S. Elting Corners Rd., Highland, NY 12528 &middot; <a href="https://www.senylrc.org" style="color:#1C4C7C;">senylrc.org</a>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>

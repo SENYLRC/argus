@@ -1,0 +1,124 @@
+{% extends 'layout.twig' %}
+{% block title %}Security — Administration{% endblock %}
+{% block content %}
+<main id="main" class="wide">
+  <div class="page-head" style="border-bottom:2px solid var(--rule);">
+    <div>
+      <h1>Security</h1>
+      <p>Require two-step sign-in, set the password policy, see who still needs two-step set up, and reset it for one person or everyone.</p>
+    </div>
+  </div>
+  {% include 'admin/_nav.twig' %}
+
+  <form method="post" action="/admin/security" class="admin-section admin-form" aria-labelledby="sec-h" style="max-width:720px;">
+    {{ csrf_field|raw }}
+    <h2 class="section-heading" id="sec-h">Two-step sign-in</h2>
+    <fieldset class="plain-fieldset">
+      <legend class="field-label">Who must use it</legend>
+      {% for value, label in {'': 'Optional — each person chooses', 'privileged': 'Required for the Executive Director, bookkeeper and Admin / Tech', 'all': 'Required for everyone'} %}
+      <label class="choice">
+        <input type="radio" name="require_2fa" value="{{ value }}" {{ require_2fa == value ? 'checked' }}>
+        <span><span class="choice__label">{{ label }}</span></span>
+      </label>
+      {% endfor %}
+      <p class="field-hint" style="margin:8px 0 0;">When required, people without it can still sign in, but every page sends them to My profile to set up an authenticator app or a security key first, and they can’t turn it off.</p>
+    </fieldset>
+
+    <h2 class="section-heading" style="margin-top:28px;">Password policy</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;">
+      <div class="field">
+        <label for="min-length">Minimum length (characters)</label>
+        <input id="min-length" type="number" name="min_length" min="8" max="64" value="{{ min_length }}" required>
+      </div>
+      <div class="field">
+        <label for="min-score">Minimum strength</label>
+        <select id="min-score" name="min_score" aria-describedby="score-hint">
+          {% for v, l in {2: 'Fair', 3: 'Strong (recommended)', 4: 'Very strong'} %}<option value="{{ v }}" {{ min_score == v ? 'selected' }}>{{ l }}</option>{% endfor %}
+        </select>
+        <span class="field-hint" id="score-hint">Scored with zxcvbn: common passwords, keyboard patterns, dates and repeats score low.</span>
+      </div>
+    </div>
+    <label class="choice" style="margin-top:12px;">
+      <input type="checkbox" name="check_breached" value="1" aria-describedby="breach-hint" {{ check_breached ? 'checked' }}>
+      <span><span class="choice__label">Refuse passwords found in known data breaches</span>
+      <span class="choice__hint" id="breach-hint">Checked with Have I Been Pwned. Only the first 5 characters of a hash of the password leave the server — never the password. If the service is unreachable the check is skipped.</span></span>
+    </label>
+    <p class="field-hint" style="margin:10px 0 0;">Every password also has to avoid the person’s own name, their email name and the organisation’s name. Applies to new and changed passwords; existing ones aren’t re-checked.</p>
+    <button type="submit" class="btn btn-primary" style="margin-top:18px;">Save security settings</button>
+  </form>
+
+  <section class="admin-section" aria-labelledby="people-h">
+    <h2 class="section-heading" id="people-h">Two-step sign-in by person</h2>
+    {% if missing %}
+    <p class="notice-required" role="status"><strong>{{ missing|length }} {{ missing|length == 1 ? 'person still needs' : 'people still need' }} to set up two-step sign-in:</strong> {{ missing|map(p => p.name)|join(', ') }}. They’ll be asked at their next page load.</p>
+    {% endif %}
+    <div class="table-scroll" tabindex="0" role="region" aria-labelledby="people-h">
+    <table class="data">
+      <caption>Active accounts and their two-step sign-in methods</caption>
+      <thead><tr><th scope="col">Person</th><th scope="col">Role</th><th scope="col">Two-step methods</th><th scope="col"><span class="visually-hidden">Reset</span></th></tr></thead>
+      <tbody>
+        {% for p in people %}
+        <tr>
+          <td><div style="font-weight:700;">{{ p.name }}</div><div class="small muted">{{ p.email }}</div></td>
+          <td class="nowrap">{{ role_labels[p.role] }}{% if p.required %} <span class="small muted">(required)</span>{% endif %}</td>
+          <td>{% if p.methods %}{{ p.methods }}{% elseif p.required %}<span class="text-danger">Not set up — required</span>{% else %}<span class="muted">Off</span>{% endif %}</td>
+          <td class="nowrap">
+            {% if p.methods %}
+            <form method="post" action="/admin/security/reset/{{ p.id }}" data-confirm="Reset two-step sign-in for {{ p.name }}? Their app, security keys and recovery codes are cleared and they’re signed out. Their password doesn’t change.">
+              {{ csrf_field|raw }}
+              <input type="hidden" name="return_to" value="/admin/security">
+              <button type="submit" class="btn-text text-danger" aria-label="Reset two-step sign-in for {{ p.name }}">Reset two-step</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <section id="force-pw" class="admin-section" aria-labelledby="fp-h">
+    <h2 class="section-heading" id="fp-h">Require new passwords</h2>
+    <p class="admin-section__intro">After a suspected leak or a change of policy: the chosen roles are signed out everywhere, their old passwords stop working, and each person is emailed a link to choose a new one. Two-step sign-in doesn’t change.</p>
+    <form method="post" action="/admin/security/force-passwords" class="admin-form" data-confirm="Sign these people out and require them to choose new passwords?">
+      {{ csrf_field|raw }}
+      <fieldset class="plain-fieldset">
+        <legend class="field-label">Which roles</legend>
+        {% for value, label in role_labels %}
+        <label class="choice"><input type="checkbox" name="roles[]" value="{{ value }}"><span><span class="choice__label">{{ label }}</span></span></label>
+        {% endfor %}
+      </fieldset>
+      <label class="choice" style="margin-top:8px;">
+        <input type="checkbox" name="include_self" value="1">
+        <span><span class="choice__label">Include my own account</span><span class="choice__hint">Leave unticked to keep your own password. If you include it, you stay signed in now but must set a new password next time.</span></span>
+      </label>
+      <button type="submit" class="btn btn-danger" style="margin-top:14px;">Require new passwords</button>
+    </form>
+  </section>
+
+  <section id="reset-all" class="admin-section" aria-labelledby="ra-h" style="border-bottom:0;">
+    <h2 class="section-heading" id="ra-h">Reset two-step sign-in for everyone</h2>
+    <p class="admin-section__intro">For a suspected compromise or a change of policy: clears every account’s authenticator app, security keys and recovery codes, signs everyone out and emails each person. Passwords don’t change.</p>
+    <details class="panel panel-danger">
+      <summary class="panel-heading" style="cursor:pointer;margin:0;">Reset everyone…</summary>
+      <form method="post" action="/admin/security/reset-all" class="admin-form" style="margin-top:12px;">
+        {{ csrf_field|raw }}
+        <label class="choice">
+          <input type="checkbox" name="include_self" value="1">
+          <span><span class="choice__label">Include my own account</span><span class="choice__hint">Leave unticked to keep your own two-step methods.</span></span>
+        </label>
+        <div class="field" style="margin-top:12px;">
+          <label for="ra-confirm">Type RESET ALL to confirm</label>
+          <input id="ra-confirm" type="text" name="confirm" autocomplete="off" required>
+        </div>
+        <div class="field" style="margin-top:12px;">
+          <label for="ra-pw">Your password</label>
+          <input id="ra-pw" type="password" name="current_password" autocomplete="current-password" required>
+        </div>
+        <button type="submit" class="btn btn-danger" style="margin-top:14px;">Reset two-step sign-in for everyone</button>
+      </form>
+    </details>
+  </section>
+</main>
+{% endblock %}

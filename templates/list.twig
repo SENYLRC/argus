@@ -1,0 +1,93 @@
+{% extends 'layout.twig' %}
+{% block title %}{{ list_title }}{% endblock %}
+{% block content %}
+<main id="main">
+  <div class="page-head">
+    <div>
+      <h1>{{ list_title }}</h1>
+      <p>{{ list_blurb }}</p>
+    </div>
+    <a href="/requests/new" class="btn btn-primary">New request</a>
+  </div>
+
+  <div class="stat-strip">
+    <div class="stat-cell">
+      <div class="eyebrow">Awaiting ED</div>
+      <div class="stat-cell__value" style="color:var(--gold);">{{ stats.pending_count }}</div>
+      <div class="stat-cell__sub">needs signature</div>
+    </div>
+    <div class="stat-cell">
+      <div class="eyebrow">Approved</div>
+      <div class="stat-cell__value" style="color:var(--navy);">{{ stats.approved_count }}</div>
+      <div class="stat-cell__sub">ready for QuickBooks</div>
+    </div>
+    <div class="stat-cell">
+      <div class="eyebrow">Requests shown</div>
+      <div class="stat-cell__value">{{ stats.shown_count }}</div>
+      <div class="stat-cell__sub">fiscal year {{ fiscal_year_label }}</div>
+    </div>
+    <div class="stat-cell">
+      <div class="eyebrow">Value</div>
+      <div class="stat-cell__value">{{ stats.value_formatted }}</div>
+      <div class="stat-cell__sub">excludes rejected</div>
+    </div>
+  </div>
+
+  <form method="post" action="/records/batch/preview" data-selection-form>
+    {{ csrf_field|raw }}
+    <div class="selection-bar" data-selection-bar>
+      <div class="selection-bar__left">
+        <span style="font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;">
+          <span data-selection-count>0</span> selected
+        </span>
+        <button type="button" class="btn btn-outline btn-small" data-select-status="pending">All awaiting ED</button>
+        <button type="button" class="btn btn-outline btn-small" data-select-status="approved">All approved</button>
+        <button type="button" class="btn-text" data-select-status="clear">Clear</button>
+      </div>
+      <button type="submit" class="btn btn-ink">Print selected records</button>
+    </div>
+
+    <table class="data">
+      <caption>Requests, with payee, requester, budget line, amount, date submitted and status</caption>
+      <thead>
+        <tr>
+          <th scope="col" style="width:34px;"><input type="checkbox" aria-label="Select all requests" data-select-all></th>
+          <th scope="col">Req. no.</th>
+          <th scope="col">Payable to</th>
+          <th scope="col">Requester</th>
+          <th scope="col">Budget line(s)</th>
+          <th scope="col" class="num">Amount</th>
+          <th scope="col">Submitted</th>
+          <th scope="col">Status</th>
+          <th scope="col"><span class="visually-hidden">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr class="{{ r.status == 'pending' ? 'is-pending' : '' }}">
+          <td>
+            <input type="checkbox" name="ids[]" value="{{ r.id }}" data-row-check data-row-status="{{ r.status }}"
+                   aria-label="Select request {{ r.number }}, {{ r.payable_to }}, {{ r.total_formatted }}">
+          </td>
+          <td style="font-weight:700;white-space:nowrap;">{{ r.number }}</td>
+          <td>
+            <div style="font-weight:700;">{{ r.payable_to }}</div>
+            <div style="font-size:11px;color:var(--grey);">{{ r.kind_label }}</div>
+          </td>
+          <td style="color:var(--grey);">{{ r.requester_name }}</td>
+          <td style="font-size:12px;color:var(--grey);">{{ r.line_summary }}</td>
+          <td class="num" style="font-weight:700;white-space:nowrap;">{{ r.total_formatted }}</td>
+          <td style="color:var(--grey);white-space:nowrap;">{{ r.submitted }}</td>
+          <td><span class="badge badge-{{ r.status }}">{{ r.status_label }}</span></td>
+          <td style="text-align:right;white-space:nowrap;">
+            <a href="/requests/{{ r.id }}" class="btn btn-outline btn-small" aria-label="Open request {{ r.number }}, {{ r.payable_to }}">Open</a>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" style="padding:28px 10px;color:var(--grey);">No requests here yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </form>
+</main>
+{% endblock %}

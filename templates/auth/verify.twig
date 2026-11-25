@@ -1,0 +1,35 @@
+{% extends 'layout.twig' %}
+{% block title %}Two-step sign-in{% endblock %}
+{% block content %}
+<main id="main" class="login-shell">
+  <div class="login-card">
+    <img class="login-card__logo" src="{{ brand_url('login') }}" width="260"
+         alt="Argus">
+    <h1 style="margin:0 0 8px;font-size:20px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;">Two-step sign-in</h1>
+    <p style="margin:0 0 18px;font-size:13px;color:var(--grey);">{{ has_keys and has_app ? 'Use your security key, or enter the 6-digit code from your authenticator app.' : (has_keys ? 'Use your security key.' : 'Enter the 6-digit code from your authenticator app.') }}</p>
+
+    {% if has_keys %}
+    <button type="button" class="btn btn-primary btn-full" data-webauthn-login data-csrf="{{ csrf_token|default('') }}">Use security key</button>
+    <p class="field-hint" data-webauthn-status role="status" aria-live="polite" style="margin:8px 0 16px;"></p>
+    <div class="or-divider" aria-hidden="true">or enter a code</div>
+    {% endif %}
+
+    {% if error is defined %}
+      <div class="field-error" role="alert" style="margin-bottom:16px;">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="/login/verify" novalidate>
+      {{ csrf_field|raw }}
+      <div class="field">
+        <label for="code">Code</label>
+        <input id="code" type="text" name="code" inputmode="{{ has_app ? 'numeric' : 'text' }}" autocomplete="one-time-code" maxlength="12" required {{ has_keys ? '' : 'autofocus' }}
+               aria-describedby="code-hint" {% if error is defined %}aria-invalid="true"{% endif %}>
+        <span class="field-hint" id="code-hint">{{ has_app ? 'Lost your phone? ' : '' }}{{ has_keys ? 'No key with you? ' : '' }}Enter one of your recovery codes (like ABCD-EFGH) here instead.</span>
+      </div>
+      <button type="submit" class="btn {{ has_keys ? 'btn-outline' : 'btn-primary' }} btn-full" style="margin-top:20px;">Verify code and sign in</button>
+    </form>
+    <p style="margin:16px 0 0;font-size:12px;color:var(--grey);">No phone, no key and no recovery codes? Ask Admin / Tech to reset your account. <a href="/login">Start over</a></p>
+  </div>
+</main>
+<script src="/assets/webauthn.js" defer></script>
+{% endblock %}

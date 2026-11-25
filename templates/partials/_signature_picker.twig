@@ -1,0 +1,62 @@
+{# Signature tiles + upload/make-default controls, shared by the ED approve
+   panel and the bookkeeper complete panel (build-notes §2c). Upload and
+   "make default" are separate forms from the sign-off form itself so a
+   failed or successful upload never discards what's already typed there.
+
+   A native <fieldset>/radio group, not a set of aria-pressed toggle buttons:
+   "pick exactly one" is exactly what radiogroup semantics are for, and it
+   gets each screen reader's own "N of M" announcement for free. The upload
+   control is a real, visible file input plus an explicit Upload button
+   rather than auto-submitting on file selection — auto-submit on change is
+   a context change the user hasn't been warned about (WCAG 3.2.2). #}
+<fieldset style="border:0;margin:0;padding:0;">
+  <legend class="eyebrow" style="margin-bottom:10px;padding:0;">Signature to apply — {{ sig_options|length }} on file</legend>
+  {% for sg in sig_options %}
+    <label class="sig-tile" style="{{ sg.selected ? 'border-color:var(--green);background:#EDF3EE;' : '' }}">
+      <input type="radio" name="signature_id" value="{{ sg.id }}" {{ sg.selected ? 'checked' : '' }}
+             aria-label="Use signature {{ sg.label_with_default }}" style="position:absolute;opacity:0;">
+      <div class="sig-preview">{{ sg.preview }}</div>
+      <div class="sig-tile__meta">
+        <span>{{ sg.label_with_default }}</span>
+        <span class="sig-tile__mark">{{ sg.selected ? 'Selected' : 'Use this' }}</span>
+      </div>
+    </label>
+  {% else %}
+    <p style="font-size:13px;color:var(--maroon);margin:0 0 10px;">No signature on file yet — upload one below before you can sign.</p>
+  {% endfor %}
+</fieldset>
+
+<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:4px;">
+  <form method="post" action="/signatures" enctype="multipart/form-data" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+    {{ csrf_field|raw }}
+    <input type="hidden" name="return_to" value="{{ current_path }}">
+    {# can_approve and can_complete are mutually exclusive for a given request
+       (build-notes §1's status flow), so this partial is only ever included
+       once per page render — a plain id is safe, no risk of a duplicate. #}
+    <div class="field">
+      <label for="sig-upload">Upload a new signature image</label>
+      <input id="sig-upload" type="file" name="signature" accept="image/png,image/jpeg" style="padding:6px;">
+    </div>
+    <button type="submit" class="btn btn-outline btn-small">Upload</button>
+  </form>
+  {% if sig_options|length %}
+  <form method="post" action="/signatures/{{ sig_options[0].id }}/default" data-default-form>
+    {{ csrf_field|raw }}
+    <input type="hidden" name="return_to" value="{{ current_path }}">
+    <button type="submit" class="btn btn-outline btn-small" data-make-default-btn>Make selected default</button>
+  </form>
+  {% endif %}
+</div>
+<p style="margin:10px 0 0;font-size:11px;color:var(--grey);">PNG or JPG with a transparent or white background, at least 600px wide. The chosen image prints on the cover sheet above the typed name; both are stored with the sign-off record.</p>
+<script>
+  (function () {
+    var panel = document.currentScript.closest('.panel') || document.currentScript.parentElement;
+    var defaultForm = panel ? panel.querySelector('[data-default-form]') : null;
+    if (!defaultForm) return;
+    panel.querySelectorAll('input[name="signature_id"]').forEach(function (radio) {
+      radio.addEventListener('change', function () {
+        defaultForm.setAttribute('action', '/signatures/' + radio.value + '/default');
+      });
+    });
+  })();
+</script>

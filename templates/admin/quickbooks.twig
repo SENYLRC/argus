@@ -1,0 +1,133 @@
+{% extends 'layout.twig' %}
+{% block title %}QuickBooks — Administration{% endblock %}
+{% block content %}
+<main id="main" class="wide">
+  <div class="page-head" style="border-bottom:2px solid var(--rule);">
+    <div>
+      <h1>QuickBooks</h1>
+      <p>Pull budget lines and each fiscal year’s budget from QuickBooks Online. One-way and read-only: nothing is ever written back to QuickBooks.</p>
+    </div>
+  </div>
+  {% include 'admin/_nav.twig' %}
+
+  {% if error %}<div class="field-error" role="alert" style="margin:16px 0;">{{ error }}</div>{% endif %}
+
+  {# ---------- Connection ---------- #}
+  <section class="admin-section" aria-labelledby="qb-conn-h">
+    <h2 class="section-heading" id="qb-conn-h">Connection</h2>
+    {% if not configured %}
+      <p class="admin-section__intro">Not set up yet. One-time steps:</p>
+      <ol class="setup-steps">
+        <li>At <strong>developer.intuit.com</strong>, sign in and create an app (QuickBooks Online and Payments, scope “Accounting”).</li>
+        <li>Under the app’s production settings, add this redirect URI exactly: <code>{{ redirect_uri }}</code></li>
+        <li>Put the app’s Client ID and Client Secret in <code>/var/www/argus/.env</code> as <code>QBO_CLIENT_ID</code> and <code>QBO_CLIENT_SECRET</code> (use <code>QBO_ENVIRONMENT=sandbox</code> with sandbox keys to try it first), then reload this page.</li>
+      </ol>
+    {% elseif not status.connected %}
+      <p class="admin-section__intro">Ready to connect ({{ status.environment }}). You’ll sign in to QuickBooks and approve access for this app; someone who administers the QuickBooks company needs to do this.</p>
+      <form method="post" action="/admin/quickbooks/connect">{{ csrf_field|raw }}<button type="submit" class="btn btn-primary">Connect to QuickBooks</button></form>
+    {% else %}
+      <dl class="kv" style="margin-top:0;">
+        <dt>Company</dt><dd>{{ status.company|default('(connected)') }} <span class="muted small">· {{ status.environment }}</span></dd>
+        <dt>Connected</dt><dd>{{ status.connected_at }} by {{ status.connected_by }}</dd>
+        {% if status.refresh_expires_at %}<dt>Reconnect by</dt><dd>{{ status.refresh_expires_at }} <span class="muted small">(Intuit’s maximum connection life)</span></dd>{% endif %}
+        {% if last_sync %}<dt>Last sync</dt><dd>{{ last_sync }}</dd>{% endif %}
+      </dl>
+      <form method="post" action="/admin/quickbooks/disconnect" style="margin-top:12px;" data-confirm="Disconnect QuickBooks? Lines already synced stay as they are.">
+        {{ csrf_field|raw }}<button type="submit" class="btn btn-danger-outline btn-small">Disconnect</button>
+      </form>
+    {% endif %}
+  </section>
+
+  {% if configured and status.connected %}
+  {# ---------- Sync ---------- #}
+  <section class="admin-section" aria-labelledby="qb-sync-h">
+    <h2 class="section-heading" id="qb-sync-h">Sync a fiscal year</h2>
+    <p class="admin-section__intro">Choose the QuickBooks budget for the fiscal year, preview, then apply. Lines are matched by class + account number, so who can use them and past requests are kept. Lines you entered by hand here are never changed by a sync.</p>
+    {% if budget_error %}<div class="field-error" role="alert">{{ budget_error }}</div>{% endif %}
+    <form method="post" action="/admin/quickbooks/preview" class="inline-form" style="max-width:none;">
+      {{ csrf_field|raw }}
+      <div class="field" style="min-width:220px;">
+        <label for="qb-fy">Fiscal year</label>
+        <select id="qb-fy" name="fiscal_year">
+          {% for value, label in fiscal_year_choices %}<option value="{{ value }}" {{ value == fy ? 'selected' }}>{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field" style="min-width:280px;flex:1;">
+        <label for="qb-budget">QuickBooks budget</label>
+        <select id="qb-budget" name="budget_id" required>
+          <option value="">Choose…</option>
+          {% for b in budgets %}
+          <option value="{{ b.id }}" {{ b.id == selected_budget ? 'selected' }}>{{ b.name }} ({{ b.start }} – {{ b.end }}){{ b.active ? '' : ' — inactive' }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-outline">Preview changes</button>
+    </form>
+
+    {% if preview %}
+    <div class="panel" style="margin-top:18px;" role="region" aria-labelledby="qb-prev-h">
+      <h3 class="panel-heading" id="qb-prev-h">Preview — FY {{ preview.fy }} from “{{ preview.budget.name }}”</h3>
+      <p style="margin:0 0 10px;font-size:13px;">
+        <strong>{{ preview.counts.add }}</strong> to add · <strong>{{ preview.counts.update }}</strong> to update ·
+        <strong>{{ preview.counts.retire }}</strong> to retire · {{ preview.counts.same }} unchanged ·
+        total budget {{ preview.total_budget|default(0) > 0 ? ('$' ~ (preview.total_budget / 100)|number_format(2)) : '$0.00' }}
+      </p>
+      <div class="table-scroll" tabindex="0" role="region" aria-label="Changes">
+      <table class="data">
+        <caption>Changes this sync would make</caption>
+        <thead><tr><th scope="col">Change</th><th scope="col">Account</th><th scope="col">Budget line</th><th scope="col">Class</th><th scope="col" class="num">Budget now</th><th scope="col" class="num">From QuickBooks</th></tr></thead>
+        <tbody>
+          {% for c in preview.changes %}
+          <tr{% if c.type == 'same' %} class="muted"{% endif %}>
+            <td class="nowrap">{{ {'add': 'Add', 'update': 'Update', 'retire': 'Retire', 'same': 'No change'}[c.type] }}{% if c.diff is defined and c.diff %} <span class="small muted">({{ c.diff|join(', ') }})</span>{% endif %}</td>
+            <td class="nowrap" style="font-weight:700;">{{ c.code }}</td>
+            <td>{{ c.label }}{% if c.old_label is defined and c.old_label and c.old_label != c.label %} <span class="small muted">(was “{{ c.old_label }}”)</span>{% endif %}</td>
+            <td class="nowrap">{{ c.class }}</td>
+            <td class="num nowrap">{{ c.old_budget is null ? '—' : '$' ~ (c.old_budget / 100)|number_format(2) }}</td>
+            <td class="num nowrap">{{ c.budget is null ? '—' : '$' ~ (c.budget / 100)|number_format(2) }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6" class="muted">That budget has no amounts for accounts in the selected series.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% if preview.skipped.outside_series or preview.skipped.no_class or preview.skipped.no_number %}
+      <p class="field-hint" style="margin:10px 0 0;">Skipped:
+        {% if preview.skipped.outside_series %}accounts outside the {{ series }} series ({{ preview.skipped.outside_series|join(', ') }}); {% endif %}
+        {% if preview.skipped.no_class %}{{ preview.skipped.no_class }} budget amount(s) with no class; {% endif %}
+        {% if preview.skipped.no_number %}accounts without a number ({{ preview.skipped.no_number|join(', ') }}) — turn on account numbers in QuickBooks or start their names with the number.{% endif %}
+      </p>
+      {% endif %}
+      <form method="post" action="/admin/quickbooks/apply" style="margin-top:14px;" data-confirm="Apply these changes to FY {{ preview.fy }} budget lines?">
+        {{ csrf_field|raw }}
+        <input type="hidden" name="fiscal_year" value="{{ preview.fy }}">
+        <input type="hidden" name="budget_id" value="{{ preview.budget.id }}">
+        <button type="submit" class="btn btn-primary" {{ (preview.counts.add + preview.counts.update + preview.counts.retire) == 0 ? 'disabled' }}>Apply changes</button>
+        <span class="field-hint" style="margin-left:10px;">QuickBooks is read again when you apply, so the result reflects it at that moment.</span>
+      </form>
+    </div>
+    {% endif %}
+  </section>
+
+  {# ---------- Settings ---------- #}
+  <section class="admin-section" aria-labelledby="qb-set-h" style="border-bottom:0;">
+    <h2 class="section-heading" id="qb-set-h">Sync settings</h2>
+    <form method="post" action="/admin/quickbooks/settings" class="admin-form">
+      {{ csrf_field|raw }}
+      <div class="field">
+        <label for="qb-series">Account series to import</label>
+        <input id="qb-series" type="text" name="series" value="{{ series }}" aria-describedby="qb-series-hint">
+        <span class="field-hint" id="qb-series-hint">The numbers before the dot, separated by commas — e.g. <code>83,84,85</code>. Leave empty to import every numbered account in the budget.</span>
+      </div>
+      <label class="choice" style="margin-top:12px;">
+        <input type="checkbox" name="auto_sync" value="1" aria-describedby="qb-auto-hint" {{ auto_sync ? 'checked' }}>
+        <span><span class="choice__label">Sync the current fiscal year every night</span>
+        <span class="choice__hint" id="qb-auto-hint">Uses the budget last applied for that year (or the active QuickBooks budget starting July 1). Also keeps the connection from going stale.</span></span>
+      </label>
+      <button type="submit" class="btn btn-primary" style="margin-top:14px;">Save settings</button>
+    </form>
+  </section>
+  {% endif %}
+</main>
+{% endblock %}

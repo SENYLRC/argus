@@ -1,0 +1,266 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Command-line entry point: scheduled mail, the nightly QuickBooks sync and a
+ * few setup commands. Run `php bin/console` with no arguments for the list.
+ * Cron lines live in deploy/senylrc-expenses.cron; run as the web-server user
+ * so file ownership under storage/ stays correct.
+ */
+
+use App\Domain\DigestBuilder;
+use App\Domain\MailService;
+use App\Domain\UploadService;
+use App\Domain\UserRepository;
+use App\Support\Config;
+use App\Support\Db;
+
+/** @var \Twig\Environment $twig */
+$twig = require __DIR__ . '/../bootstrap.php';
+
+$command = $argv[1] ?? null;
+
+/** Print an error to stderr and exit with status 1. */
+function fail(string $message): never
+{
+    fwrite(STDERR, $message . PHP_EOL);
+    exit(1);
+}
+
+switch ($command) {
+    case 'mail:weekly-digest':
+        weeklyDigest($twig);
+        break;
+
+    case 'mail:recurring-reminder':
+        recurringReminder($twig);
+        break;
+
+    case 'user:create-admin':
+        createAdmin($argv);
+        break;
+
+    case 'signatures:seed-placeholders':
+        seedPlaceholderSignatures();
+        break;
+
+    case 'files:scan':
+        filesScan($twig);
+        break;
+
+    case 'files:baseline':
+        filesBaseline();
+        break;
+
+    case 'quickbooks:sync':
+        quickbooksSync($argv);
+        break;
+
+    default:
+        fwrite(STDOUT, <<<TXT
+        Usage: bin/console <command>
+
+          mail:weekly-digest          Send the Monday 07:00 pending digest to ED + bookkeeper.
+          mail:recurring-reminder     Send the 1st-of-month 06:00 recurring-batch reminder to all active accounts.
+          user:create-admin <email> <name>   Bootstrap the first admin account (prompts for a password).
+          signatures:seed-placeholders        Generate placeholder signature PNGs referenced by db/seed.sql.
+          files:scan                          Compare the code files to the integrity baseline; email Admin / Tech on changes (nightly cron).
+          files:baseline                      Accept the files as they are now as the new integrity baseline (run by install.sh).
+          quickbooks:sync [FY] [--force]      Sync budget lines from QuickBooks Online (nightly cron; only
+                                              runs when "nightly sync" is on, unless --force). FY e.g. 2026-27.
+
+        TXT);
+        exit($command === null ? 0 : 1);
+}
+
+/**
+ * Mondays 07:00 -> ED + bookkeeper (build-notes §4). Cron entry in
+ * deploy/senylrc-expenses.cron.
+ */
+function weeklyDigest(\Twig\Environment $twig): void
+{
+    $mail = new MailService($twig);
+    $digest = DigestBuilder::weeklyDigest();
+    if (!$digest['pending_count'] && !$digest['approved_count']) {
+        echo "Nothing pending or recently approved — no digest sent.\n";
+        return;
+    }
+
+    $stmt = Db::conn()->query("SELECT email, name FROM users WHERE role IN ('ed','bookkeeper') AND active = 1");
+    $recipients = $stmt->fetchAll();
+    if (!$recipients) {
+        fail('No active ED/bookkeeper accounts to send the digest to.');
+    }
+
+    $subject = "Requests this week — {$digest['pending_count']} awaiting approval, {$digest['approved_count']} approved";
+    foreach ($recipients as $r) {
+        $mail->send('weekly_digest', $r['email'], $subject, $digest + [
+            'cta_url' => rtrim((string) Config::get('app.base_url'), '/') . '/requests',
+        ]);
+    }
+    echo "Weekly digest sent to " . count($recipients) . " recipient(s).\n";
+    if ($note = \App\Support\Settings::emailModeText()) {
+        echo $note . "\n";
+    }
+    \App\Domain\AuditLogger::log('system', null, 'weekly_digest', 'Weekly pending digest sent to ' . count($recipients) . ' approvers', actorId: null, actorEmail: 'system');
+}
+
+/**
+ * 1st of the month 06:00 -> all accounts with active recurring templates
+ * (build-notes §4).
+ */
+function recurringReminder(\Twig\Environment $twig): void
+{
+    $mail = new MailService($twig);
+    // Each person has their own sheet, so only people with active lines get a
+    // reminder, and it counts only their lines.
+    $stmt = Db::conn()->query(
+        'SELECT DISTINCT u.id, u.email, u.name FROM users u
+           JOIN recurring_templates rt ON rt.owner_id = u.id AND rt.active = 1
+          WHERE u.active = 1'
+    );
+    $recipients = $stmt->fetchAll();
+    if (!$recipients) {
+        echo "No one has active recurring lines — no reminder sent.\n";
+        return;
+    }
+
+    foreach ($recipients as $r) {
+        $mail->send('recurring_reminder', $r['email'], 'Your monthly recurring expenses are ready to confirm', DigestBuilder::recurringReminder((int) $r['id']) + [
+            'cta_url' => rtrim((string) Config::get('app.base_url'), '/') . '/batch',
+        ]);
+    }
+    echo "Recurring batch reminder sent to " . count($recipients) . " account(s).\n";
+    if ($note = \App\Support\Settings::emailModeText()) {
+        echo $note . "\n";
+    }
+    \App\Domain\AuditLogger::log('system', null, 'recurring_reminder', 'Recurring batch reminder sent to ' . count($recipients) . ' accounts', actorId: null, actorEmail: 'system');
+}
+
+/**
+ * Nightly (cron) or manual QuickBooks Online → budget lines sync for one FY
+ * (default: the current one), using the budget last applied for that FY or
+ * the active QuickBooks budget starting its July 1. Skips quietly when the
+ * "nightly sync" setting is off, unless --force. Also keeps the connection's
+ * refresh token rotating so it doesn't go stale.
+ */
+function quickbooksSync(array $argv): void
+{
+    $args = array_slice($argv, 2);
+    $force = in_array('--force', $args, true);
+    $fy = array_values(array_filter($args, fn ($a) => $a !== '--force'))[0] ?? \App\Support\FiscalYear::current();
+    if (!\App\Support\FiscalYear::isValid($fy)) {
+        fail("Not a fiscal year: {$fy} (use e.g. 2026-27).");
+    }
+    if (!$force && \App\Support\Settings::get('qbo_auto_sync') !== '1') {
+        echo "Nightly QuickBooks sync is off — nothing to do (use --force to run anyway).\n";
+        return;
+    }
+    if (!\App\Support\QuickBooksClient::configured() || !\App\Support\QuickBooksClient::isConnected()) {
+        fail('QuickBooks is not connected (Administration > QuickBooks).');
+    }
+    try {
+        $budgetId = \App\Domain\QuickBooksSync::defaultBudgetId($fy, \App\Domain\QuickBooksSync::budgets());
+        if ($budgetId === null) {
+            fail("No QuickBooks budget chosen or found for FY {$fy} — pick one under Administration > QuickBooks.");
+        }
+        $plan = \App\Domain\QuickBooksSync::plan($fy, $budgetId);
+        $applied = \App\Domain\QuickBooksSync::apply($plan);
+    } catch (\RuntimeException $e) {
+        \App\Domain\AuditLogger::log('system', null, 'qbo_sync_failed', 'Nightly QuickBooks sync failed: ' . $e->getMessage(), actorId: null, actorEmail: 'system');
+        fail($e->getMessage());
+    }
+    \App\Domain\AuditLogger::log('system', null, 'qbo_sync',
+        "Nightly QuickBooks sync for FY {$fy} from “{$plan['budget']['name']}”: {$applied['add']} added, {$applied['update']} updated, {$applied['retire']} retired",
+        actorId: null, actorEmail: 'system');
+    echo "FY {$fy}: {$applied['add']} added, {$applied['update']} updated, {$applied['retire']} retired.\n";
+}
+
+/**
+ * user:create-admin <email> <name>: creates the first Admin / Tech account.
+ * Prompts for the password without echoing it and enforces the password policy.
+ */
+function createAdmin(array $argv): void
+{
+    $email = $argv[2] ?? null;
+    $name = $argv[3] ?? null;
+    if (!$email || !$name) {
+        fail('Usage: bin/console user:create-admin <email> <"Full Name">');
+    }
+    if (UserRepository::findByEmail($email)) {
+        fail("An account with {$email} already exists.");
+    }
+
+    fwrite(STDOUT, \App\Support\PasswordPolicy::hint() . PHP_EOL . 'Password: ');
+    system('stty -echo');
+    $password = trim((string) fgets(STDIN));
+    system('stty echo');
+    fwrite(STDOUT, PHP_EOL);
+    if ($weak = \App\Support\PasswordPolicy::problems($password, ['name' => $name, 'email' => $email])) {
+        fail(implode(' ', $weak));
+    }
+
+    $id = UserRepository::create($name, 'Admin / Tech', $email, 'admin');
+    UserRepository::setPassword($id, $password);
+    echo "Admin account created for {$email}. Set a sign-off PIN and upload a signature after logging in.\n";
+}
+
+/**
+ * Generates the placeholder signature PNGs referenced by db/seed.sql
+ * (director-example-signature.png etc.) — plain rectangles with the typed name,
+ * clearly not real signatures. Run once after importing seed.sql.
+ */
+function seedPlaceholderSignatures(): void
+{
+    if (!function_exists('imagecreatetruecolor')) {
+        fail('The GD extension is required to generate placeholder signatures.');
+    }
+
+    $dir = rtrim((string) Config::get('storage.root'), '/') . '/' . Config::get('storage.signatures') . '/placeholder';
+    if (!is_dir($dir) && !mkdir($dir, 0750, true) && !is_dir($dir)) {
+        fail("Could not create {$dir}");
+    }
+
+    $targets = [
+        'director-example-signature.png' => 'Example Director',
+        'director-example-initials.png'  => 'E.D.',
+        'bookkeeper-signature.png'    => 'Bookkeeper',
+    ];
+
+    foreach ($targets as $filename => $label) {
+        $image = imagecreatetruecolor(600, 180);
+        $white = imagecolorallocate($image, 255, 255, 255);
+        $ink = imagecolorallocate($image, 32, 30, 29);
+        imagefilledrectangle($image, 0, 0, 599, 179, $white);
+        imagestring($image, 5, 30, 80, "[placeholder signature] {$label}", $ink);
+        imagepng($image, $dir . '/' . $filename);
+        imagedestroy($image);
+        echo "Wrote {$dir}/{$filename}\n";
+    }
+    echo "Done — these are placeholders. Replace by uploading real signatures via the app.\n";
+}
+
+/**
+ * files:scan: nightly file integrity check (App\Domain\FileMonitor). Does nothing
+ * when the monitor is switched off.
+ */
+function filesScan(\Twig\Environment $twig): void
+{
+    if (!\App\Domain\FileMonitor::enabled()) {
+        echo "File integrity monitor is off.\n";
+        return;
+    }
+    $r = \App\Domain\FileMonitor::run(new MailService($twig));
+    echo $r['status'] === 'clean'
+        ? "No changes ({$r['total']} files).\n"
+        : sprintf("Changes: %d modified, %d new, %d deleted, %d code file(s) in storage.\n", count($r['modified']), count($r['added']), count($r['deleted']), count($r['storage_code']));
+}
+
+/** files:baseline: take a new integrity baseline from the files on disk. */
+function filesBaseline(): void
+{
+    $n = \App\Domain\FileMonitor::rebaseline();
+    echo "Baseline taken: {$n} files.\n";
+}

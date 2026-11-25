@@ -1,0 +1,16 @@
+{# Administration sub-sections. admin_section is set by each admin controller. #}
+<nav class="subnav" aria-label="Administration sections">
+  {% for item in [
+    {id: 'overview', href: '/admin', label: 'Overview'},
+    {id: 'email', href: '/admin/email', label: 'Email'},
+    {id: 'files', href: '/admin/files', label: 'Files & branding'},
+    {id: 'quickbooks', href: '/admin/quickbooks', label: 'QuickBooks'},
+    {id: 'security', href: '/admin/security', label: 'Security'},
+    {id: 'protection', href: '/admin/protection', label: 'IP protection'},
+    {id: 'integrity', href: '/admin/integrity', label: 'File integrity'},
+    {id: 'site', href: '/admin/site', label: 'Site banner'},
+    {id: 'audit', href: '/admin/audit', label: 'Audit log'}
+  ] %}
+  <a href="{{ item.href }}" {{ admin_section|default('') == item.id ? 'aria-current="page"' }}>{{ item.label }}</a>
+  {% endfor %}
+</nav>

@@ -1,0 +1,29 @@
+{% extends 'layout.twig' %}
+{% block title %}Sign in{% endblock %}
+{% block content %}
+<main id="main" class="login-shell">
+  <div class="login-card">
+    <img class="login-card__logo" src="{{ brand_url('login') }}" width="260"
+         alt="Argus">
+    <h1 style="margin:0 0 20px;font-size:20px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;">Expenditure &amp; Encumbrance Requests</h1>
+
+    {% if error %}
+      <div class="field-error" role="alert" style="margin-bottom:16px;">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="/login">
+      {{ csrf_field|raw }}
+      <div class="field">
+        <label for="email">Email</label>
+        <input id="email" type="email" name="email" required autocomplete="username" value="{{ submitted_email|default('') }}">
+      </div>
+      <div class="field" style="margin-top:16px;">
+        <label for="password">Password</label>
+        <input id="password" type="password" name="password" required autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn btn-primary btn-full" style="margin-top:20px;">Sign in</button>
+    </form>
+    <p style="margin:16px 0 0;font-size:12px;color:var(--grey);">Forgotten your password? Ask Admin / Tech to send you a reset link from the Accounts screen.</p>
+  </div>
+</main>
+{% endblock %}

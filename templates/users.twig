@@ -1,0 +1,150 @@
+{% extends 'layout.twig' %}
+{% block title %}Accounts{% endblock %}
+{% block content %}
+<main id="main" class="wide">
+  <div class="page-head">
+    <div>
+      <h1>Accounts</h1>
+      <p>{{ users_blurb }}</p>
+    </div>
+    <a href="/users/new" class="btn btn-primary">+ Add account</a>
+  </div>
+
+  {% if draft %}
+  <section class="panel" style="margin:22px 0;">
+    <div class="panel-heading">{{ draft.heading }}</div>
+    <form method="post" action="{{ draft.action }}">
+      {{ csrf_field|raw }}
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;">
+        <div class="field">
+          <label for="un">Full name</label>
+          <input id="un" type="text" name="name" value="{{ draft.name }}" placeholder="First Last" required>
+        </div>
+        <div class="field">
+          <label for="ut">Job title</label>
+          <input id="ut" type="text" name="title" value="{{ draft.title }}" placeholder="e.g. Digital Services Manager">
+        </div>
+        <div class="field">
+          <label for="ue">Email (also the login)</label>
+          <input id="ue" type="email" name="email" value="{{ draft.email }}" placeholder="name@example.org" required>
+        </div>
+        <div class="field">
+          <label for="ur">Role</label>
+          <select id="ur" name="role" {{ role_locked ? 'disabled' : '' }}>
+            {% for value, label in assignable_roles %}
+              <option value="{{ value }}" {{ draft.role == value ? 'selected' : '' }}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          {% if role_locked %}
+            {# A disabled select doesn't submit — repeat the value as hidden so a non-admin editor can't widen scope by re-enabling it client-side, and the server still enforces this regardless. #}
+            <input type="hidden" name="role" value="{{ draft.role }}">
+            <span style="font-size:11px;color:var(--maroon);">Only Admin / Tech can grant approver or admin roles.</span>
+          {% endif %}
+        </div>
+      </div>
+      <fieldset class="plain-fieldset" style="margin-top:22px;border-top:2px solid var(--rule);padding-top:16px;" aria-describedby="lines-hint">
+        <legend class="field-label">Budget lines this person can use</legend>
+        <p class="field-hint" id="lines-hint" style="margin:4px 0 8px;">Applies to staff and Admin / Tech — the Executive Director and bookkeeper always see every line. Shared lines (travel, postage, building…) are available to everyone and are already ticked. Leave everything else unticked and this person sees all lines.</p>
+        {# One checkbox per budget line (account number) per fiscal year. Classes
+           are the QuickBooks split and are picked on the request itself; a ticked
+           line covers it in every class it's budgeted in. #}
+        {% for g in line_groups %}
+        <div class="field-label" style="margin:14px 0 2px;color:var(--navy);">FY {{ g.fy }}</div>
+        {% for sg in g.groups %}
+        {# One block per account series: 83, 84, 85 … #}
+        <div role="group" aria-label="FY {{ g.fy }}, {{ sg.series }} series">
+          <div class="series-heading" aria-hidden="true">{{ sg.series }}</div>
+          <div class="check-columns" style="margin-left:0;">
+            {% for l in sg.items %}
+            <label class="check-inline">
+              {% if l.shared %}
+              <input type="checkbox" checked disabled aria-describedby="lines-hint"> {{ l.code }} · {{ l.label }} <span class="muted small">(shared)</span>
+              {% else %}
+              <input type="checkbox" name="budget_lines[]" value="{{ l.key }}" {{ l.key in draft.budget_line_keys ? 'checked' }}> {{ l.code }} · {{ l.label }}
+              {% endif %}
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+        {% endfor %}
+      </fieldset>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:22px;border-top:2px solid var(--rule);padding-top:18px;">
+        <button type="submit" class="btn btn-primary">{{ draft.save_label }}</button>
+        <a href="/users" class="btn btn-outline">Cancel</a>
+      </div>
+      <p style="margin:16px 0 0;font-size:12px;color:var(--grey);">A new account gets an emailed set-password link, valid 48 hours. Approver accounts are then prompted to set a 4-digit sign-off PIN and upload a signature image on first login.</p>
+    </form>
+  </section>
+  {% endif %}
+
+  <table class="data" style="margin-top:8px;">
+    <caption>Staff accounts, with login email, role, sign-off credentials and status</caption>
+    <thead>
+      <tr>
+        <th scope="col">Name &amp; title</th>
+        <th scope="col">Login email</th>
+        <th scope="col">Role</th>
+        <th scope="col">Sign-off credentials</th>
+        <th scope="col">Status</th>
+        <th scope="col"><span class="visually-hidden">Actions</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in users %}
+      <tr style="opacity:{{ u.active ? '1' : '.55' }};">
+        <td>
+          <div style="font-weight:700;">{{ u.name }}</div>
+          <div style="font-size:11px;color:var(--grey);">{{ u.title|default('—') }}</div>
+          <div style="font-size:11px;color:var(--grey);">{{ u.lines_label }}</div>
+        </td>
+        <td style="color:var(--grey);">{{ u.email }}</td>
+        <td><span class="badge badge-role-{{ u.role }}">{{ role_labels[u.role] }}</span></td>
+        <td style="font-size:12px;color:var(--grey);">{{ u.credentials_label }}<div>Two-step sign-in: {{ u.two_factor ?: 'off' }}</div></td>
+        <td style="font-size:12px;font-weight:700;color:{{ u.active ? 'var(--green-ink)' : 'var(--maroon)' }};">{{ u.active ? 'Active' : 'Deactivated' }}</td>
+        <td>
+          <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
+            {% if u.can_manage %}
+            <a href="/users/{{ u.id }}/edit" class="btn btn-outline btn-small" aria-label="Edit account for {{ u.name }}">Edit</a>
+            {% endif %}
+            {% if is_admin and u.two_factor %}
+            <form method="post" action="/admin/security/reset/{{ u.id }}" data-confirm="Reset two-step sign-in for {{ u.name }}? Their app, security keys and recovery codes are cleared and they’re signed out. Their password doesn’t change." style="display:inline;">
+              {{ csrf_field|raw }}
+              <input type="hidden" name="return_to" value="/users">
+              <button type="submit" class="btn-text text-danger" aria-label="Reset two-step sign-in for {{ u.name }}">Reset two-step</button>
+            </form>
+            {% endif %}
+            <form method="post" action="/users/{{ u.id }}/reset" data-confirm="Reset {{ u.name }}'s password, PIN and two-step sign-in? They get a new set-password link.">
+              {{ csrf_field|raw }}
+              <button type="submit" class="btn btn-accent-outline btn-small" aria-label="Reset password, PIN and two-step sign-in for {{ u.name }}">Reset</button>
+            </form>
+            <form method="post" action="/users/{{ u.id }}/toggle">
+              {{ csrf_field|raw }}
+              <button type="submit" class="btn btn-small" style="border:2px solid var(--gold);color:var(--ink);background:transparent;"
+                      aria-label="{{ (u.active ? 'Deactivate ' : 'Reactivate ') ~ u.name ~ '’s account' }}">{{ u.active ? 'Deactivate' : 'Reactivate' }}</button>
+            </form>
+            {% if u.can_delete %}
+            <form method="post" action="/users/{{ u.id }}/delete" data-confirm="Permanently delete {{ u.name }}'s account?">
+              {{ csrf_field|raw }}
+              <button type="submit" class="btn btn-danger-outline btn-small" aria-label="Delete {{ u.name }}'s account">Delete</button>
+            </form>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="role-guide">
+    {% for g in role_guide %}
+    <div class="role-guide__cell">
+      <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--navy);">{{ g.role }}</div>
+      <div style="font-size:22px;font-weight:700;margin-top:4px;">{{ g.count_label }}</div>
+      <div style="font-size:12px;color:var(--grey);margin-top:4px;">{{ g.caps }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  <p style="margin:16px 0 0;font-size:12px;color:var(--grey);max-width:80ch;">Deactivating keeps every past request, signature and audit entry intact — the person just can't log in. Deletion is admin-only and blocked for any account that has signed off on a request.</p>
+</main>
+{% endblock %}

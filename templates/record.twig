@@ -1,0 +1,12 @@
+{% extends 'layout.twig' %}
+{% block title %}{{ request.number }} — record{% endblock %}
+{% block content %}
+<main id="main" class="print-shell">
+  <div class="print-toolbar noprint">
+    <a href="/requests/{{ request.id }}" class="btn btn-on-dark">&#8592; Back</a>
+    <h1 style="font-size:12px;font-weight:400;margin:0;color:#fff;">PDF record preview for {{ request.number }} — page 1, cover sheet. {{ request.attachments|length ? 'The uploaded invoice is appended as page 2.' : 'No attachment is on file.' }}</h1>
+    <a href="/requests/{{ request.id }}/record.pdf" class="btn btn-primary">Download / print PDF</a>
+  </div>
+  <div class="sheet">{{ cover_sheet_html|raw }}</div>
+</main>
+{% endblock %}

@@ -1,0 +1,29 @@
+{% extends 'layout.twig' %}
+{% block title %}Email notices{% endblock %}
+{% block content %}
+<main id="main" class="wide">
+  <div class="page-head" style="border-bottom:2px solid var(--rule);">
+    <div>
+      <h1>Email notices</h1>
+      <p>The three notices the council chose. Sent from <strong>expenses@example.org</strong>, plain HTML in the council's palette, Arial throughout.</p>
+    </div>
+  </div>
+  <div class="email-grid">
+    {% for m in emails %}
+    <article class="email-card">
+      <div class="email-card__trigger">{{ m.trigger }}</div>
+      <div class="email-card__meta">
+        <div><strong style="color:var(--ink);">To:</strong> {{ m.to }}</div>
+        <div style="margin-top:4px;"><strong style="color:var(--ink);">Subject:</strong> {{ m.subject }}</div>
+      </div>
+      <div class="email-card__body">
+        <div class="email-card__org">Southeastern NY Library Resources Council</div>
+        <div style="margin-top:14px;font-size:13px;white-space:pre-line;">{{ m.body }}</div>
+        <div class="email-card__cta">{{ m.cta }}</div>
+        <div class="email-card__footer">21 S. Elting Corners Rd., Highland, NY 12528 · senylrc.org</div>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+</main>
+{% endblock %}

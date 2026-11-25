@@ -1,0 +1,27 @@
+{# Account security notice (password changed, two-step sign-in on/off, new
+   recovery codes) — sent to the account's own address by AccountController. #}
+{% extends "mail/_layout.html.twig" %}
+{% import "mail/_macros.html.twig" as m %}
+{% block subject %}{{ event }}{% endblock %}
+{% block preheader %}{{ event }} on {{ when }}. If this wasn’t you, tell Admin / Tech right away.{% endblock %}
+{% block body %}
+{{ m.heading(event) }}
+{{ m.p('Hi ' ~ (name|e) ~ ',') }}
+{{ m.p('This is a notice that a security setting on your Expenditure &amp; Encumbrance Requests account just changed.') }}
+{{ m.details({'What': event, 'When': when, 'From IP address': ip}) }}
+{{ m.p('<strong>If this was you</strong>, there’s nothing to do. <strong>If it wasn’t</strong>, tell Admin / Tech right away so they can reset your account.') }}
+{{ m.button(cta_url|default(base_url), 'Review my account') }}
+{% endblock %}
+{% block plain %}{% autoescape false %}{{ event }}
+
+Hi {{ name }},
+
+A security setting on your Expenditure & Encumbrance Requests account just changed.
+
+What: {{ event }}
+When: {{ when }}
+From IP address: {{ ip }}
+
+If this was you, there's nothing to do. If it wasn't, tell Admin / Tech right away so they can reset your account.
+
+{{ cta_url|default(base_url) }}{% endautoescape %}{% endblock %}

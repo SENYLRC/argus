@@ -1,0 +1,304 @@
+{% extends 'layout.twig' %}
+{% block title %}{{ form_heading }}{% endblock %}
+{% block content %}
+<main id="main" class="narrow">
+  <div class="page-head" style="border-bottom:2px solid var(--rule);">
+    <div>
+      <h1>{{ form_heading }}</h1>
+      <p>Mirrors the paper form <em>Request for Expenditure or Encumbrance</em>. One request may split across up to four budget lines.</p>
+    </div>
+  </div>
+
+  {% if errors|default({})|length %}
+    <div class="locked-note" style="border-left-color:var(--maroon);" role="alert" id="form-errors" tabindex="-1">
+      Fix the following before submitting:
+      <ul>
+        {% for field, message in errors %}<li>{{ message }}</li>{% endfor %}
+      </ul>
+    </div>
+    <script>
+      {# A role="alert" region present in the page's initial HTML (as this is,
+         after a failed-validation redisplay) isn't reliably announced by every
+         screen reader the way a truly dynamic insertion would be — moving
+         focus here is, since a focus change is always announced. #}
+      document.getElementById('form-errors').focus();
+    </script>
+  {% endif %}
+
+  <form method="post" action="{{ form_action }}" enctype="multipart/form-data" novalidate>
+    {{ csrf_field|raw }}
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));border-bottom:2px solid var(--rule);">
+      <div style="padding:20px 22px 20px 0;">
+        {# Plain radios (not a JS toggle) so the choice works without script and each
+           option's explanation is read out with it. #}
+        {# Which fiscal year (July 1 – June 30) this is charged to. The budget-line
+           dropdowns below only list that year's lines and refill when it changes. #}
+        <div class="field" style="margin-bottom:16px;">
+          <label for="fiscal_year">Fiscal year</label>
+          <select id="fiscal_year" name="fiscal_year" data-fiscal-year aria-describedby="fy-hint">
+            {% for value, label in fiscal_year_choices %}
+            <option value="{{ value }}" {{ form.fiscal_year|default('') == value ? 'selected' }}>{{ label }}{{ lines_by_fy_count[value]|default(0) == 0 ? ' — no budget lines yet' : '' }}</option>
+            {% endfor %}
+          </select>
+          <span class="field-hint" id="fy-hint">The council’s fiscal year runs July 1 – June 30. Pick the year this is budgeted in — usually the current one; last year for a late invoice, next year for something you’re encumbering ahead.</span>
+        </div>
+
+        <fieldset class="plain-fieldset">
+          <legend class="eyebrow" style="margin-bottom:4px;">Request type</legend>
+          {% set kind = form.kind|default('expenditure') %}
+          <label class="choice">
+            <input type="radio" name="kind" value="expenditure" aria-describedby="kind-exp-hint" {{ kind == 'expenditure' ? 'checked' }}>
+            <span><span class="choice__label">Expenditure — pay now</span>
+            <span class="choice__hint" id="kind-exp-hint">For something already bought, received or billed: an invoice, a bill that’s due, or a receipt to reimburse. Once approved, the bookkeeper pays it.</span></span>
+          </label>
+          <label class="choice">
+            <input type="radio" name="kind" value="encumbrance" aria-describedby="kind-enc-hint" {{ kind == 'encumbrance' ? 'checked' }}>
+            <span><span class="choice__label">Encumbrance — set money aside</span>
+            <span class="choice__hint" id="kind-enc-hint">For a commitment you’ll pay later: a purchase order, a signed contract or an accepted quote. The amount is reserved on the budget line now so it isn’t spent twice; it’s paid when the invoice arrives.</span></span>
+          </label>
+        </fieldset>
+        <label style="display:flex;align-items:flex-start;gap:10px;margin-top:16px;font-size:13px;cursor:pointer;text-transform:none;letter-spacing:normal;color:var(--ink);">
+          <input type="checkbox" name="is_recurring" value="1" {{ form.is_recurring|default(false) ? 'checked' : '' }}>
+          <span>Regular monthly expense — add to the recurring batch sheet</span>
+        </label>
+      </div>
+      <div style="padding:20px 22px;border-left:2px solid var(--rule);">
+        <div class="field">
+          <label for="dn">Date needed / due</label>
+          <input id="dn" type="date" name="date_needed" value="{{ form.date_needed|default('') }}">
+        </div>
+        <div class="field" style="margin-top:16px;">
+          <label for="pm">Payment method</label>
+          <select id="pm" name="payment_method">
+            {% for value, label in payment_methods %}
+              <option value="{{ value }}" {{ form.payment_method|default('check') == value ? 'selected' : '' }}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div style="padding:20px 0;border-bottom:2px solid var(--rule);">
+      <div class="field">
+        <label for="pt">Payable to</label>
+        <input id="pt" type="text" name="payable_to" value="{{ form.payable_to|default('') }}" placeholder="Vendor or payee name"
+               aria-describedby="{{ errors.payable_to|default(false) ? 'pt-error' : '' }}" aria-invalid="{{ errors.payable_to|default(false) ? 'true' : 'false' }}">
+        {% if errors.payable_to|default(false) %}<div class="field-error" id="pt-error">{{ errors.payable_to }}</div>{% endif %}
+      </div>
+      <div class="field" style="margin-top:16px;">
+        <label for="ra">Mail-to / remit address</label>
+        <textarea id="ra" name="remit_address" rows="3" placeholder='Street, city, state, ZIP — or note "pay online"'>{{ form.remit_address|default('') }}</textarea>
+      </div>
+    </div>
+
+    <div style="padding:20px 0;border-bottom:2px solid var(--rule);" data-lines-container>
+      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+        <div class="eyebrow">Budget lines</div>
+        <div style="font-size:11px;color:var(--grey);">Choose from the list, or pick <strong>Other — enter a new line</strong> to free-text one.</div>
+      </div>
+
+      {% if errors.amount|default(false) %}<div class="field-error">{{ errors.amount }}</div>{% endif %}
+
+      <div data-line-rows>
+        {% for line in form.lines %}
+          {% include 'partials/_line_row.twig' with {line: line, index: loop.index0, classes: classes} %}
+        {% endfor %}
+      </div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:18px;border-top:2px solid var(--rule);padding-top:14px;">
+        <button type="button" class="btn btn-accent-outline" data-add-line {{ form.lines|length >= 4 ? 'disabled' : '' }}>+ Add budget line</button>
+        <div style="display:flex;align-items:baseline;gap:14px;">
+          <span class="eyebrow">Total</span>
+          <span style="font-size:26px;font-weight:700;" data-check-total>{{ form_total }}</span>
+        </div>
+      </div>
+
+      {# The requester's budget lines for each FY with budget, approved, pending
+         and left — only the selected FY's table is shown. #}
+      {% for fy, groups in budget_summary %}
+      <details class="budget-summary" data-budget-summary="{{ fy }}" {{ fy != form.fiscal_year ? 'hidden' }}>
+        <summary>Your budget lines for FY {{ fy }} — budget, approved, pending and left</summary>
+        {% if groups %}
+        <div class="table-scroll" tabindex="0" role="region" aria-label="Your budget lines for FY {{ fy }}">
+        <table class="data">
+          <caption>Your budget lines for FY {{ fy }}, grouped by account series</caption>
+          <thead><tr>
+            <th scope="col">Account</th><th scope="col">Budget line</th><th scope="col">Class</th>
+            <th scope="col" class="num">Budget</th><th scope="col" class="num">Approved</th><th scope="col" class="num">Pending</th><th scope="col" class="num">Left</th>
+          </tr></thead>
+          {% for g in groups %}
+          <tbody>
+            <tr class="series-row"><th scope="rowgroup" colspan="7">{{ g.series }}</th></tr>
+            {% for r in g.items %}
+            <tr>
+              <td class="nowrap" style="font-weight:700;">{{ r.code }}</td>
+              <td>{{ r.label }}</td>
+              <td class="nowrap muted">{{ r.class }}</td>
+              <td class="num nowrap">{{ r.budget ?? '—' }}</td>
+              <td class="num nowrap">{{ r.approved }}</td>
+              <td class="num nowrap">{{ r.pending }}</td>
+              <td class="num nowrap{{ r.over ? ' text-danger' : '' }}">{{ r.remaining is null ? '—' : r.remaining }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          {% endfor %}
+        </table>
+        </div>
+        <p class="field-hint" style="margin:8px 0 0;">Approved includes everything signed off this fiscal year; pending is waiting for the Executive Director. Rejected requests don’t count.</p>
+        {% else %}
+        <p class="field-hint" style="margin:8px 0 0;">No budget lines for FY {{ fy }} yet.</p>
+        {% endif %}
+      </details>
+      {% endfor %}
+    </div>
+
+    <div style="padding:20px 0;border-bottom:2px solid var(--rule);">
+      <div class="field">
+        <label for="js">Description / justification</label>
+        <textarea id="js" name="justification" rows="3" placeholder="What this is for, and why now">{{ form.justification|default('') }}</textarea>
+      </div>
+      <div style="margin-top:16px;">
+        <div class="eyebrow" style="margin-bottom:8px;">Receipt or invoice</div>
+        <div class="dropzone">
+          <div style="font-size:13px;color:var(--grey);flex:1;min-width:200px;">
+            <label for="attachment-input">Receipt or invoice file</label><br>
+            The file is appended to the generated record behind the cover sheet — exactly like the paper packets.
+          </div>
+          <input id="attachment-input" type="file" name="attachment" accept="application/pdf,image/jpeg,image/png" data-attachment-input style="padding:6px;">
+        </div>
+        <div class="attachment-confirm" data-attachment-confirm {{ form.existing_attachment_name|default(false) ? '' : 'hidden' }}>
+          Attached: <strong data-attachment-name>{{ form.existing_attachment_name|default('') }}</strong>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:12px;flex-wrap:wrap;padding:22px 0;">
+      <button type="submit" class="btn btn-primary">{{ submit_label }}</button>
+      <a href="{{ cancel_url }}" class="btn btn-outline">Cancel</a>
+    </div>
+  </form>
+</main>
+<script id="budget-lines-data" type="application/json">{{ budget_lines_json|raw }}</script>
+<script>
+  // BUDGET_LINES is { "2026-27": { classId: [ {value, label, group, budget,
+  // approved, pending, remaining}, … ] }, … } — amounts in cents.
+  var BUDGET_LINES = JSON.parse(document.getElementById('budget-lines-data').textContent);
+  var fySelect = document.querySelector('[data-fiscal-year]');
+  function money(cents) {
+    return '$' + (cents / 100).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  }
+  function lineData(row) {
+    var cls = row.querySelector('[data-line-class]').value;
+    var code = row.querySelector('[data-line-code]').value;
+    return ((BUDGET_LINES[fySelect.value] || {})[cls] || []).filter(function (o) { return o.value === code; })[0] || null;
+  }
+  // The note under a row's line: FY budget, already approved, pending, left.
+  function updateBudget(row) {
+    var el = row.querySelector('[data-line-budget]');
+    if (!el) return;
+    var d = lineData(row);
+    el.classList.remove('is-over');
+    if (!d) { el.textContent = ''; return; }
+    if (d.budget === null) {
+      el.textContent = 'No FY ' + fySelect.value + ' budget entered for this line · ' + money(d.approved) + ' approved, ' + money(d.pending) + ' pending';
+      return;
+    }
+    el.textContent = 'FY ' + fySelect.value + ' budget ' + money(d.budget) + ' · ' + money(d.approved) + ' approved · '
+      + money(d.pending) + ' pending · ' + (d.remaining < 0 ? 'over by ' + money(-d.remaining) : money(d.remaining) + ' left');
+    if (d.remaining < 0) el.classList.add('is-over');
+  }
+  document.querySelector('[data-lines-container]').addEventListener('change', function (e) {
+    var row = e.target.closest('[data-line-row]');
+    if (!row) return;
+    if (e.target.matches('[data-line-code]')) { updateBudget(row); return; }
+    if (!e.target.matches('[data-line-class]')) return;
+    var codeSelect = row.querySelector('[data-line-code]');
+    var currentValue = codeSelect.value;
+    var options = (BUDGET_LINES[fySelect.value] || {})[e.target.value] || [];
+    codeSelect.innerHTML = '';
+    // One <optgroup> per account series (83, 84, 85 …), in the order given.
+    var groups = {};
+    options.forEach(function (opt) {
+      if (!groups[opt.group]) {
+        groups[opt.group] = document.createElement('optgroup');
+        groups[opt.group].label = opt.group;
+        codeSelect.appendChild(groups[opt.group]);
+      }
+      var el = document.createElement('option');
+      el.value = opt.value; el.textContent = opt.label;
+      groups[opt.group].appendChild(el);
+    });
+    var other = document.createElement('option');
+    other.value = '__custom__'; other.textContent = 'Other — enter a new line';
+    codeSelect.appendChild(other);
+    codeSelect.value = options.some(function (o) { return o.value === currentValue; }) ? currentValue : options[0] ? options[0].value : '__custom__';
+    codeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  // Show the budget summary for the chosen fiscal year only.
+  function showSummary() {
+    document.querySelectorAll('[data-budget-summary]').forEach(function (s) {
+      s.hidden = s.getAttribute('data-budget-summary') !== fySelect.value;
+    });
+  }
+  // Changing the fiscal year refills every row's budget-line list for that year.
+  fySelect.addEventListener('change', function () {
+    document.querySelectorAll('[data-line-class]').forEach(function (sel) {
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    showSummary();
+  });
+  document.querySelectorAll('[data-line-row]').forEach(updateBudget);
+  showSummary();
+  function recalcTotal() {
+    var total = 0;
+    document.querySelectorAll('[data-line-amount]').forEach(function (input) {
+      var n = parseFloat((input.value || '0').replace(/[^0-9.]/g, ''));
+      if (!isNaN(n)) total += n;
+    });
+    var el = document.querySelector('[data-check-total]');
+    if (el) el.textContent = '$' + total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  }
+  var addBtn = document.querySelector('[data-add-line]');
+  if (addBtn) {
+    addBtn.addEventListener('click', function () {
+      var rows = document.querySelector('[data-line-rows]');
+      var rowEls = rows.querySelectorAll('[data-line-row]');
+      if (rowEls.length >= 4) return;
+      var clone = rowEls[0].cloneNode(true);
+      clone.querySelectorAll('input').forEach(function (i) { i.value = ''; });
+      clone.querySelectorAll('select').forEach(function (s) { s.selectedIndex = 0; });
+      var custom = clone.querySelector('[data-line-custom]');
+      if (custom) custom.hidden = true;
+      // Give the copy its own ids (and "line N" names) so labels and the budget
+      // note point at this row, not row 1.
+      var n = rowEls.length;
+      var lbl = clone.querySelector('[id^="cls-label-"]');
+      if (lbl) { lbl.id = 'cls-label-' + n; clone.querySelector('[data-line-class]').setAttribute('aria-labelledby', lbl.id); }
+      var note = clone.querySelector('[data-line-budget]');
+      if (note) { note.id = 'line-budget-' + n; clone.querySelector('[data-line-code]').setAttribute('aria-describedby', note.id); }
+      clone.querySelectorAll('[aria-label]').forEach(function (el) {
+        el.setAttribute('aria-label', el.getAttribute('aria-label').replace(/line \d+/, 'line ' + (n + 1)).replace(/budget line \d+/, 'budget line ' + (n + 1)));
+      });
+      rows.appendChild(clone);
+      updateBudget(clone);
+      if (rows.querySelectorAll('[data-line-row]').length >= 4) addBtn.setAttribute('disabled', 'disabled');
+      recalcTotal();
+    });
+  }
+  // One delegated handler, so rows added with "+ Add budget line" can be removed too.
+  document.querySelector('[data-line-rows]').addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-line-remove]');
+    if (!btn) return;
+    var rows = document.querySelector('[data-line-rows]');
+    if (rows.querySelectorAll('[data-line-row]').length <= 1) return;
+    btn.closest('[data-line-row]').remove();
+    if (addBtn) addBtn.removeAttribute('disabled');
+    recalcTotal();
+  });
+  // Same for amounts typed into added rows.
+  document.querySelector('[data-line-rows]').addEventListener('input', function (e) {
+    if (e.target.matches('[data-line-amount]')) recalcTotal();
+  });
+</script>
+{% endblock %}

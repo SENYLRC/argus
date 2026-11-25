@@ -1,0 +1,19 @@
+/vendor/
+/config/config.php
+/config/secrets.php
+/.env
+/storage/attachments/*
+/storage/signatures/*
+/storage/generated_pdfs/*
+/storage/tmp/*
+!/storage/attachments/.gitkeep
+!/storage/signatures/.gitkeep
+!/storage/generated_pdfs/.gitkeep
+!/storage/tmp/.gitkeep
+.DS_Store
+/storage/branding/*
+!/storage/branding/.gitkeep
+/.claude/
+
+# Internal ops handoff (servers, recovery steps): keep local, never publish
+/STATUS.md

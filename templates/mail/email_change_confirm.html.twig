@@ -1,0 +1,22 @@
+{# Sent to the NEW address when someone changes their sign-in email (My profile). #}
+{% extends "mail/_layout.html.twig" %}
+{% import "mail/_macros.html.twig" as m %}
+{% block subject %}Confirm your new sign-in email{% endblock %}
+{% block preheader %}Open the link within 24 hours to start signing in with {{ new_email }}.{% endblock %}
+{% block body %}
+{{ m.heading('Confirm your new sign-in email') }}
+{{ m.p('Hi ' ~ (name|e) ~ ',') }}
+{{ m.p('You asked to change the email you sign in with from ' ~ (old_email|e) ~ ' to <strong>' ~ (new_email|e) ~ '</strong>. Confirm it within 24 hours:') }}
+{{ m.button(cta_url, 'Confirm new email') }}
+{{ m.link_fallback(cta_url) }}
+{{ m.p('<span style="font-size:12px;color:#5F5F5F;">The link only works from the Southeastern office network. If you didn’t ask for this, ignore this email — nothing changes.</span>') }}
+{% endblock %}
+{% block plain %}{% autoescape false %}Confirm your new sign-in email
+
+Hi {{ name }},
+
+You asked to change the email you sign in with from {{ old_email }} to {{ new_email }}. Confirm it within 24 hours:
+
+{{ cta_url }}
+
+The link only works from the Southeastern office network. If you didn't ask for this, ignore this email — nothing changes.{% endautoescape %}{% endblock %}

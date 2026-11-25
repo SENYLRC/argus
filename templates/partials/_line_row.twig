@@ -1,0 +1,40 @@
+{# One budget-line row in the new/edit request form. Re-included client-side
+   (cloned via JS, see new_request.twig) up to 4 times; the account-number
+   select is repopulated on class change from window.__BUDGET_LINES__. #}
+<div class="line-row" data-line-row>
+  <div class="field">
+    <span class="field-label" id="cls-label-{{ index }}">Class</span>
+    <select name="line_class[]" data-line-class aria-labelledby="cls-label-{{ index }}" aria-label="Budget class, line {{ index + 1 }}">
+      {% for c in classes %}
+        <option value="{{ c.id }}" {{ line.class_id|default(classes[0].id) == c.id ? 'selected' : '' }}>{{ c.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <span class="field-label">Account number / budget line</span>
+    <select name="line_code[]" data-line-code aria-label="Account number, line {{ index + 1 }}" aria-describedby="line-budget-{{ index }}">
+      {% set current_class = classes|filter(c => c.id == line.class_id|default(classes[0].id))|first %}
+      {# Grouped by account series (83, 84, 85 …). #}
+      {% for g in current_class.line_groups|default([]) %}
+      <optgroup label="{{ g.series }}">
+        {% for opt in g.items %}
+        <option value="{{ opt.value }}" {{ line.code|default('') == opt.value ? 'selected' : '' }}>{{ opt.label }}</option>
+        {% endfor %}
+      </optgroup>
+      {% endfor %}
+      <option value="__custom__" {{ line.is_custom|default(false) ? 'selected' : '' }}>Other — enter a new line</option>
+    </select>
+    <input type="text" name="line_custom[]" data-line-custom class="custom-line-input"
+           value="{{ line.free_text|default('') }}" placeholder="e.g. 84.40 · Membership dues"
+           aria-label="New budget line, line {{ index + 1 }}" {{ line.is_custom|default(false) ? '' : 'hidden' }}>
+  </div>
+  <div class="field">
+    <span class="field-label">Amount</span>
+    <input type="text" inputmode="decimal" name="line_amount[]" data-line-amount value="{{ line.amount_display|default('') }}"
+           placeholder="0.00" style="text-align:right;" aria-label="Amount in dollars, line {{ index + 1 }}">
+  </div>
+  <button type="button" class="line-remove" data-line-remove aria-label="Remove budget line {{ index + 1 }}" title="Remove budget line {{ index + 1 }}">&#10005;</button>
+  {# This line's FY budget / approved / pending / left — filled in by the form
+     script. Its own full-width grid row, so it never pushes the fields out of line. #}
+  <div class="line-budget" id="line-budget-{{ index }}" data-line-budget aria-live="polite"></div>
+</div>

@@ -1,0 +1,11 @@
+Argus: Expenditure & Encumbrance Request System
+Copyright 2026 Southeastern New York Library Resources Council
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+The Argus eye logo in public/assets/brand/ is generic and covered by this license.
+Any organisation name or logo files used in a particular deployment belong to that
+organisation and are not licensed by this repository.
+
+Third-party libraries installed with Composer (see composer.lock) keep their own
+licenses.

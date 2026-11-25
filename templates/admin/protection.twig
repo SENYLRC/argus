@@ -1,0 +1,120 @@
+{% extends 'layout.twig' %}
+{% block title %}IP protection — Administration{% endblock %}
+{% block content %}
+<main id="main" class="wide">
+  <div class="page-head" style="border-bottom:2px solid var(--rule);">
+    <div>
+      <h1>IP protection</h1>
+      <p>Lock an address out of signing in after repeated failures, optionally pause scanners, and keep allow and block lists. Everyone in the office shares one public address, so the limits are generous.</p>
+    </div>
+  </div>
+  {% include 'admin/_nav.twig' %}
+
+  {% if switched_off %}
+  <p class="notice-required" role="status"><strong>IP protection is switched off on the server</strong> (ARGUS_DISABLE_IP_GUARD in .env). The settings below have no effect until it is removed.</p>
+  {% endif %}
+
+  <form method="post" action="/admin/protection" class="admin-section admin-form" aria-labelledby="lp-h" style="max-width:720px;">
+    {{ csrf_field|raw }}
+    <h2 class="section-heading" id="lp-h">Sign-in lockout</h2>
+    <p class="field-hint" style="margin:0 0 12px;">Your address as the site sees it: <strong>{{ my_ip }}</strong>. Add it to the allow list below if you never want it locked.</p>
+    <label class="choice">
+      <input type="checkbox" name="enabled" value="1" {{ s.enabled ? 'checked' }}>
+      <span><span class="choice__label">Turn on IP protection</span>
+      <span class="choice__hint">Covers everything on this page, including the allow and block lists.</span></span>
+    </label>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-top:14px;">
+      <div class="field">
+        <label for="lp-failed">Failed sign-ins before lockout</label>
+        <input id="lp-failed" type="number" name="failed" min="3" max="1000" value="{{ s.failed }}" required>
+      </div>
+      <div class="field">
+        <label for="lp-window">…within (minutes)</label>
+        <input id="lp-window" type="number" name="timeframe_min" min="1" max="1440" value="{{ s.timeframe_min }}" required>
+      </div>
+      <div class="field">
+        <label for="lp-dur">Lock out for (minutes)</label>
+        <input id="lp-dur" type="number" name="duration" min="1" max="10080" value="{{ s.duration }}" required>
+      </div>
+    </div>
+    <label class="choice" style="margin-top:12px;">
+      <input type="checkbox" name="permanent" value="1" {{ s.permanent ? 'checked' }}>
+      <span><span class="choice__label">Stay locked until I lift it</span>
+      <span class="choice__hint">Ignores the time above. Wrong passwords, unknown emails and wrong two-step codes all count. People already signed in keep working.</span></span>
+    </label>
+
+    <h2 class="section-heading" style="margin-top:28px;">Scanner lockout</h2>
+    <label class="choice">
+      <input type="checkbox" name="scan_enabled" value="1" {{ s.scan_enabled ? 'checked' }}>
+      <span><span class="choice__label">Lock out addresses that request many pages that don’t exist</span>
+      <span class="choice__hint">Only counts people who aren’t signed in. A lockout here blocks the whole site for that address.</span></span>
+    </label>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-top:14px;">
+      <div class="field">
+        <label for="sc-hits">Not-found requests before lockout</label>
+        <input id="sc-hits" type="number" name="scan_hits" min="3" max="1000" value="{{ s.scan_hits }}" required>
+      </div>
+      <div class="field">
+        <label for="sc-win">…within (minutes)</label>
+        <input id="sc-win" type="number" name="scan_window_min" min="1" max="1440" value="{{ s.scan_window_min }}" required>
+      </div>
+    </div>
+
+    <h2 class="section-heading" style="margin-top:28px;">Allow and block lists</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;">
+      <div class="field">
+        <label for="lp-allow">Allow list — never locked</label>
+        <textarea id="lp-allow" name="allowlist" rows="5" aria-describedby="list-hint" spellcheck="false">{{ s.allowlist }}</textarea>
+      </div>
+      <div class="field">
+        <label for="lp-block">Block list — always refused</label>
+        <textarea id="lp-block" name="blocklist" rows="5" aria-describedby="list-hint" spellcheck="false">{{ s.blocklist }}</textarea>
+      </div>
+    </div>
+    <p class="field-hint" id="list-hint" style="margin:6px 0 0;">One address or range per line, IPv4 or IPv6, like <code>203.0.113.5</code> or <code>203.0.113.0/24</code>.</p>
+    <button type="submit" class="btn btn-primary" style="margin-top:18px;">Save IP protection settings</button>
+  </form>
+
+  <section class="admin-section" aria-labelledby="bans-h">
+    <h2 class="section-heading" id="bans-h">Lockouts in force</h2>
+    {% if bans %}
+    <div class="table-scroll" tabindex="0" role="region" aria-labelledby="bans-h">
+    <table class="data">
+      <caption>Addresses currently locked out</caption>
+      <thead><tr><th scope="col">Address</th><th scope="col">Kind</th><th scope="col">Until</th><th scope="col"><span class="visually-hidden">Lift</span></th></tr></thead>
+      <tbody>
+        {% for b in bans %}
+        <tr>
+          <td><strong>{{ b.ip }}</strong></td>
+          <td>{{ b.kind == '404' ? 'Scanner (whole site)' : 'Sign-in' }}</td>
+          <td class="nowrap">{{ b.permanent ? 'Until lifted' : b.expires_at|date('M j, Y g:i A') }}</td>
+          <td class="nowrap">
+            <form method="post" action="/admin/protection/unlock">
+              {{ csrf_field|raw }}
+              <input type="hidden" name="ip" value="{{ b.ip }}">
+              <button type="submit" class="btn-text" aria-label="Lift the lockout for {{ b.ip }}">Lift lockout</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p class="muted">No address is locked out.</p>
+    {% endif %}
+  </section>
+
+  <section class="admin-section" aria-labelledby="recent-h" style="border-bottom:0;">
+    <h2 class="section-heading" id="recent-h">Recent lockouts</h2>
+    {% if recent %}
+    <ul class="plain-list">
+      {% for e in recent %}<li><span class="muted">{{ e.at|date('M j, Y g:i A') }}</span> — {{ e.detail }}</li>{% endfor %}
+    </ul>
+    {% else %}
+    <p class="muted">None recorded yet. The Audit log has the full history.</p>
+    {% endif %}
+    <p class="field-hint" style="margin-top:14px;">If a lockout ever traps an admin, set <code>ARGUS_DISABLE_IP_GUARD=1</code> in the server’s <code>.env</code> to switch this off, then remove it once you’re back in.</p>
+  </section>
+</main>
+{% endblock %}

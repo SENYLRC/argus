@@ -1,0 +1,20 @@
+{# Who can use a budget line: shared with everyone, or chosen staff / Admin-Tech people.
+   Expects: prefix (unique per form), shared (bool), assigned_ids, staff (staff + Admin / Tech users). #}
+<fieldset class="plain-fieldset" style="margin-top:14px;">
+  <legend class="field-label">Who can use it</legend>
+  <label class="choice">
+    <input type="radio" name="audience" value="shared" {{ shared ? 'checked' }}>
+    <span><span class="choice__label">Shared with everyone</span><span class="choice__hint">For lines everyone charges to — travel, postage, building.</span></span>
+  </label>
+  <label class="choice">
+    <input type="radio" name="audience" value="assigned" {{ not shared ? 'checked' }}>
+    <span><span class="choice__label">Only the people ticked below</span><span class="choice__hint">The ED and bookkeeper always see every line.</span></span>
+  </label>
+  <div class="check-columns" role="group" aria-label="People who can use this line">
+    {% for u in staff %}
+    <label class="check-inline"><input type="checkbox" name="users[]" value="{{ u.id }}" {{ u.id in assigned_ids ? 'checked' }}> {{ u.name }}{% if u.role|default('') == 'admin' %} <span class="muted small">(Admin / Tech)</span>{% endif %}</label>
+    {% else %}
+    <span class="small muted">No active staff or Admin / Tech accounts.</span>
+    {% endfor %}
+  </div>
+</fieldset>

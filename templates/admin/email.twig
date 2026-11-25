@@ -1,0 +1,112 @@
+{% extends 'layout.twig' %}
+{% block title %}Email — Administration{% endblock %}
+{% block content %}
+<main id="main" class="wide">
+  <div class="page-head" style="border-bottom:2px solid var(--rule);">
+    <div>
+      <h1>Email</h1>
+      <p>Test mode, who email comes from, which notices go out, and a log of what was sent. Mail is handed to the server’s own Postfix.</p>
+    </div>
+  </div>
+  {% include 'admin/_nav.twig' %}
+
+  <section id="test-mode" class="admin-section" aria-labelledby="test-mode-h">
+    <h2 class="section-heading" id="test-mode-h">Email test mode</h2>
+    <p class="admin-section__intro">Covers every email the system sends. Leave it on until go-live — the seed accounts use real senylrc.org addresses.</p>
+    <form method="post" action="/admin/email-mode" class="admin-form">
+      {{ csrf_field|raw }}
+      <fieldset class="plain-fieldset">
+        <legend class="field-label">When the system sends email</legend>
+        {% set modes = [
+          {value: '', label: 'Send normally', hint: 'Email goes to the real recipients.'},
+          {value: 'redirect', label: 'Send all email to the test address', hint: 'Subject starts with [TEST]; a banner at the top lists who it would have gone to.'},
+          {value: 'off', label: 'Don’t send any email', hint: 'Nothing leaves the server; each message is only recorded in the log below.'}
+        ] %}
+        {% for opt in modes %}
+        <label class="choice">
+          <input type="radio" name="email_mode" value="{{ opt.value }}" aria-describedby="mode-hint-{{ loop.index }}" {{ email_mode == opt.value ? 'checked' }}>
+          <span><span class="choice__label">{{ opt.label }}</span><span class="choice__hint" id="mode-hint-{{ loop.index }}">{{ opt.hint }}</span></span>
+        </label>
+        {% endfor %}
+      </fieldset>
+      <div class="field" style="margin-top:16px;">
+        <label for="email_test_to">Test address</label>
+        <input id="email_test_to" type="text" name="email_test_to" value="{{ email_test_to }}" autocomplete="off" aria-describedby="test-to-hint" placeholder="{{ me_email }}">
+        <span class="field-hint" id="test-to-hint">Used by “Send all email to the test address”. Several addresses: separate them with commas.</span>
+      </div>
+      <button type="submit" class="btn btn-primary" style="margin-top:16px;">Save test mode</button>
+    </form>
+  </section>
+
+  <section id="options" class="admin-section" aria-labelledby="options-h">
+    <h2 class="section-heading" id="options-h">Sender &amp; notices</h2>
+    <form method="post" action="/admin/email/options" class="admin-form">
+      {{ csrf_field|raw }}
+      <div class="field">
+        <label for="from_name">From name</label>
+        <input id="from_name" type="text" name="from_name" value="{{ from_name }}" maxlength="120" placeholder="{{ default_from_name }}" aria-describedby="from-name-hint">
+        <span class="field-hint" id="from-name-hint">Leave blank to use “{{ default_from_name }}”.</span>
+      </div>
+      <div class="field" style="margin-top:16px;">
+        <label for="from_email">From address</label>
+        <input id="from_email" type="email" name="from_email" value="{{ from_email }}" placeholder="{{ default_from_email }}" aria-describedby="from-email-hint">
+        <span class="field-hint" id="from-email-hint">Leave blank to use {{ default_from_email }}. Must be an address senylrc.org’s SPF/DKIM allows this server to send as, or mail lands in spam.</span>
+      </div>
+
+      <label class="choice" style="margin-top:12px;">
+        <input type="checkbox" name="reply_to_approver" value="1" aria-describedby="reply-hint" {{ reply_to_approver ? 'checked' }}>
+        <span><span class="choice__label">Replies to a rejection go to the approver</span><span class="choice__hint" id="reply-hint">Sets Reply-To to whoever rejected the request, so the requester can answer them directly.</span></span>
+      </label>
+
+      <fieldset class="plain-fieldset" style="margin-top:20px;">
+        <legend class="field-label">Notices that go out</legend>
+        {% for n in notices %}
+        <label class="choice">
+          <input type="checkbox" name="notify[{{ n.key }}]" value="1" aria-describedby="notice-hint-{{ n.key }}" {{ n.on ? 'checked' }}>
+          <span><span class="choice__label">{{ n.label }}</span><span class="choice__hint" id="notice-hint-{{ n.key }}">{{ n.hint }}</span></span>
+        </label>
+        {% endfor %}
+        <p class="field-hint" style="margin:10px 0 0;">Set-password and reset links are always sent — without them nobody can sign in.</p>
+      </fieldset>
+      <button type="submit" class="btn btn-primary" style="margin-top:16px;">Save email options</button>
+    </form>
+  </section>
+
+  <section id="send-test" class="admin-section" aria-labelledby="send-test-h">
+    <h2 class="section-heading" id="send-test-h">Send a test email</h2>
+    <p class="admin-section__intro">Checks the whole path — this server’s Postfix, the From address and the logo. Goes to the address you type even while test mode is on.</p>
+    <form method="post" action="/admin/email/test" class="admin-form inline-form">
+      {{ csrf_field|raw }}
+      <div class="field" style="flex:1;min-width:240px;">
+        <label for="test_to">Send to</label>
+        <input id="test_to" type="email" name="test_to" value="{{ me_email }}" required>
+      </div>
+      <button type="submit" class="btn btn-outline">Send test email</button>
+    </form>
+  </section>
+
+  <section id="log" class="admin-section" aria-labelledby="log-h" style="border-bottom:0;">
+    <h2 class="section-heading" id="log-h">Recent email</h2>
+    {% if email_log %}
+    <div class="table-scroll" tabindex="0" role="region" aria-labelledby="log-h">
+    <table class="data">
+      <caption>Last 50 emails: time, real recipient, subject and what happened</caption>
+      <thead><tr><th scope="col">When</th><th scope="col">To</th><th scope="col">Subject</th><th scope="col">Result</th></tr></thead>
+      <tbody>
+        {% for e in email_log %}
+        <tr>
+          <td class="nowrap muted small">{{ e.when }}</td>
+          <td class="nowrap">{{ e.to }}</td>
+          <td>{{ e.subject }}</td>
+          <td{% if not e.ok %} class="text-danger"{% endif %}>{{ e.result }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p class="admin-section__intro">No email yet.</p>
+    {% endif %}
+  </section>
+</main>
+{% endblock %}

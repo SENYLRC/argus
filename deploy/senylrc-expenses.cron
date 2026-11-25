@@ -1,0 +1,8 @@
+# Copy to /etc/cron.d/senylrc-expenses (build-notes §4).
+# Adjust the path if the app isn't deployed at /var/www/argus.
+0 7 * * 1  www-data  /usr/bin/php /var/www/argus/bin/console mail:weekly-digest
+0 6 1 * *  www-data  /usr/bin/php /var/www/argus/bin/console mail:recurring-reminder
+# QuickBooks Online → budget lines, nightly 05:30 (does nothing unless "nightly sync" is on in Administration > QuickBooks).
+30 5 * * *  www-data  /usr/bin/php /var/www/argus/bin/console quickbooks:sync
+# File integrity scan, nightly 05:45 (does nothing unless it's on in Administration > File integrity).
+45 5 * * *  www-data  /usr/bin/php /var/www/argus/bin/console files:scan

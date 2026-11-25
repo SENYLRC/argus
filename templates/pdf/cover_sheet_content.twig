@@ -1,0 +1,113 @@
+{# The 816x1056 (US Letter @ 96dpi) cover sheet, reproducing
+   S:\FORMS\Request for Expenditure or Encumbrance.doc, showing only the
+   fields that are filled in (blank ones are left out, per the client)
+   (build-notes §3). Table-based markup throughout — not CSS grid — both
+   because Dompdf doesn't support grid and because build-notes §4b asks for
+   real <table> markup so the generated PDF can be tagged for PDF/UA.
+   Included by both pdf/cover_sheet.html.twig (the real PDF, via Dompdf) and
+   record.twig (the on-screen preview) so the two can never drift apart. #}
+{# 672 + 2×72 padding = 816px = US Letter at 96 dpi. content-box on purpose:
+   Dompdf ignores box-sizing, so border-box would make the PDF 960px wide. #}
+<div style="width:672px;min-height:910px;background:#fff;padding:64px 72px;box-sizing:content-box;font-family:Arial, Helvetica, sans-serif;font-size:13px;line-height:1.6;color:#201E1D;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-bottom:2px solid #201E1D;padding-bottom:14px;">
+    <tr>
+      <td>
+        <div style="font-size:16px;font-weight:bold;">Request for Expenditure or Encumbrance</div>
+        <div style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#5F5F5F;margin-top:4px;">Southeastern NY Library Resources Council</div>
+      </td>
+      <td width="187" style="text-align:right;vertical-align:top;">
+        {# Official horizontal logo, unaltered (style guide v3.0) — 40px tall keeps its text legible. #}
+        <img src="{{ logo_src }}" height="40" style="height:40px;width:auto;" alt="Argus">
+      </td>
+    </tr>
+  </table>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:22px;">
+    <tr>
+      <td><span style="color:#5F5F5F;">Requester:</span> <span style="border-bottom:1px solid #201E1D;padding:0 8px;font-weight:bold;">{{ requester }}</span></td>
+      <td style="text-align:right;"><span style="color:#5F5F5F;">Fiscal year:</span> <span style="border-bottom:1px solid #201E1D;padding:0 8px;">FY {{ fiscal_year }}</span>
+        &nbsp; <span style="color:#5F5F5F;">Date:</span> <span style="border-bottom:1px solid #201E1D;padding:0 8px;">{{ submitted }}</span></td>
+    </tr>
+  </table>
+
+  {# Only filled-in information is shown: the chosen request type (not an empty
+     second checkbox), posting details once the bookkeeper has them, the budget
+     lines actually used, the approval once given. #}
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;">
+    <tr>
+      <td><span style="color:#5F5F5F;">Type:</span> <strong>{{ kind_label }}</strong></td>
+      {% if posted_date %}<td><span style="color:#5F5F5F;">Date posted to account:</span> <span style="border-bottom:1px solid #201E1D;padding:0 8px;">{{ posted_date }}</span></td>{% endif %}
+      {% if ref_no %}<td style="text-align:right;"><span style="color:#5F5F5F;">{{ ref_label }}:</span> <span style="border-bottom:1px solid #201E1D;padding:0 8px;">{{ ref_no }}</span></td>{% endif %}
+    </tr>
+  </table>
+
+  <div style="margin-top:20px;"><span style="color:#5F5F5F;">Payable To:</span> <span style="border-bottom:1px solid #201E1D;padding:0 8px;font-weight:bold;">{{ payable_to }}</span></div>
+
+  {# A real data table (header cells, not role=presentation) so the PDF's
+     accessibility tags and screen readers get column names; amounts line up
+     in one column with the total directly beneath them. #}
+  {# Plain heading rather than <caption>: Dompdf positions captions unreliably. #}
+  <div style="margin-top:26px;font-weight:bold;">Request</div>
+  <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:6px;border-collapse:collapse;">
+    <thead>
+      <tr>
+        <th scope="col" style="text-align:left;padding:6px 10px 6px 0;border-bottom:2px solid #201E1D;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#5F5F5F;font-weight:bold;">Account</th>
+        <th scope="col" style="text-align:left;padding:6px 10px;border-bottom:2px solid #201E1D;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#5F5F5F;font-weight:bold;">Budget line</th>
+        <th scope="col" style="text-align:left;padding:6px 10px;border-bottom:2px solid #201E1D;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#5F5F5F;font-weight:bold;">Class</th>
+        <th scope="col" style="text-align:right;padding:6px 0 6px 10px;border-bottom:2px solid #201E1D;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#5F5F5F;font-weight:bold;">Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for l in lines %}
+      <tr>
+        <td style="padding:9px 10px 9px 0;border-bottom:1px solid #E3E0DC;font-weight:bold;white-space:nowrap;">{{ l.code }}</td>
+        <td style="padding:9px 10px;border-bottom:1px solid #E3E0DC;">{{ l.label }}</td>
+        <td style="padding:9px 10px;border-bottom:1px solid #E3E0DC;color:#5F5F5F;white-space:nowrap;">{{ l.class }}</td>
+        <td style="padding:9px 0 9px 10px;border-bottom:1px solid #E3E0DC;text-align:right;white-space:nowrap;">{{ l.amount }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="4" style="text-align:right;padding:12px 0 0;font-size:15px;white-space:nowrap;">
+          <span style="color:#5F5F5F;">Total</span>&nbsp;&nbsp;<strong>{{ total }}</strong>
+        </td>
+      </tr>
+    </tfoot>
+  </table>
+
+  {% if ed_signature %}
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:38px;">
+    <tr>
+      <td>
+        <span style="color:#5F5F5F;">Executive Director Approval</span>
+        <span style="display:inline-block;border-bottom:1px solid #201E1D;min-width:260px;padding:0 8px;font-family:Georgia, serif;font-style:italic;font-size:19px;">{{ ed_signature }}</span>
+        <div style="font-size:9px;letter-spacing:.6px;text-transform:uppercase;color:#5F5F5F;margin-top:4px;">{{ ed_sig_file }}</div>
+      </td>
+      <td style="text-align:right;vertical-align:bottom;white-space:nowrap;"><span style="color:#5F5F5F;">Date:</span> <span style="border-bottom:1px solid #201E1D;padding:0 8px;">{{ ed_date }}</span></td>
+    </tr>
+  </table>
+  {% elseif status == 'pending' %}
+  <p style="margin-top:38px;color:#5F5F5F;">Awaiting Executive Director approval.</p>
+  {% elseif status == 'rejected' %}
+  <p style="margin-top:38px;color:#5F5F5F;">Not approved.</p>
+  {% endif %}
+
+  {% if date_ordered %}
+  <div style="margin-top:22px;"><span style="color:#5F5F5F;">Date Ordered</span> <span style="display:inline-block;border-bottom:1px solid #201E1D;min-width:120px;padding:0 8px;">{{ date_ordered }}</span></div>
+  {% endif %}
+
+  {% if notes|trim %}
+  <div style="margin-top:26px;">
+    <div style="color:#5F5F5F;">Notes:</div>
+    <div style="border:1px solid #201E1D;padding:12px;margin-top:8px;white-space:pre-line;">{{ notes|trim }}</div>
+  </div>
+  {% endif %}
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:34px;border-top:1px solid #5F5F5F;padding-top:10px;font-size:10px;color:#5F5F5F;">
+    <tr>
+      <td>{{ request_number }} · generated {{ today }} · senylrc.org</td>
+      <td style="text-align:right;">Page 1 of {{ page_count }} — {{ page_count > 1 ? 'invoice attached' : 'no attachment on file' }}</td>
+    </tr>
+  </table>
+</div>

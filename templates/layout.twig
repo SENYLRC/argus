@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Expenditure &amp; Encumbrance Requests{% endblock %} — Southeastern NY Library Resources Council</title>
+<link rel="icon" href="/assets/brand/favicon.ico" sizes="any">
+<link rel="icon" href="/assets/brand/favicon-32x32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="/assets/brand/apple-touch-icon.png">
+<link rel="stylesheet" href="/assets/style.css">
+<script src="/assets/app.js" defer></script>
+</head>
+<body>
+<a class="skip-link noprint" href="#main">Skip to main content</a>
+
+{% if site_banner|default('') %}
+{# Test-site banner, shown to everyone including the sign-in page
+   (Administration > Site banner). White on maroon 9.4:1. #}
+<div class="site-banner noprint" role="note" aria-label="Site notice">{{ site_banner }}</div>
+{% endif %}
+
+{% if current_user %}
+<header class="app-header noprint">
+  <div class="app-header__brand">
+    {# Official white logo over a block of brand colour (style guide v3.0,
+       "Southeastern Logos"); the logo carries the org name, so no separate
+       text line. Clear space ≥ .25" is the padding on .app-header__logo. #}
+    <a class="app-header__logo" href="/requests">
+      <img src="{{ brand_url('header') }}" height="56"
+           alt="Argus — requests home">
+    </a>
+    <div class="app-header__title">Expenditure &amp; Encumbrance Requests</div>
+  </div>
+  <div class="app-header__actions">
+    <div class="app-header__user">
+      <a class="app-header__user-name" href="/account" {{ active_tab == 'account' ? 'aria-current="page"' }}>{{ current_user.name }}<span class="visually-hidden"> — my profile</span></a>
+      <div class="app-header__user-role">{{ role_label }}</div>
+    </div>
+    <form method="post" action="/logout">
+      {{ csrf_field|raw }}
+      <button type="submit" class="btn btn-on-dark btn-small">Log out</button>
+    </form>
+  </div>
+</header>
+
+<nav class="tabs noprint" aria-label="Sections">
+  {% for tab in tabs %}
+    <a href="/{{ tab.id == 'list' or tab.id == 'mine' ? 'requests' : (tab.id == 'new' ? 'requests/new' : tab.id) }}"
+       aria-current="{{ active_tab == tab.id ? 'page' : 'false' }}">{{ tab.label }}</a>
+  {% endfor %}
+</nav>
+{% endif %}
+
+{% if email_mode_text|default('') %}
+{# Admin-only, like linx's email_mode_bar: a standing reminder before go-live. #}
+<div class="test-mode-bar noprint">
+  <strong>{{ email_mode_text }}</strong>
+  <a href="/admin/email#test-mode">Change it under Administration &gt; Email</a>
+</div>
+{% endif %}
+
+{% if flash %}
+<div class="notice noprint" role="status" aria-live="polite" id="flash-notice" tabindex="-1">
+  <div class="notice__body">
+    <span class="notice__tag">Notice</span>
+    <span>{{ flash.message }}</span>
+  </div>
+  <form method="post" action="/flash/dismiss">
+    {{ csrf_field|raw }}
+    <input type="hidden" name="next" value="{{ current_path|default('/') }}">
+    <button type="submit" class="btn btn-outline btn-small">Dismiss</button>
+  </form>
+</div>
+<script>
+  {# This renders right after the user's own action (a redirect following a
+     form submit), so moving focus here is expected, not a surprise context
+     change — and it's the only reliable way to guarantee a screen reader
+     announces it, since role="status" content already present at page load
+     isn't always picked up as a "live" update the way a later DOM mutation
+     would be. #}
+  document.getElementById('flash-notice').focus();
+</script>
+{% endif %}
+
+{% block content %}{% endblock %}
+
+{% if current_user %}
+<footer class="app-footer noprint">
+  <span>Southeastern NY Library Resources Council · Expenditure &amp; Encumbrance Requests</span>
+  <span><a href="/accessibility">Accessibility statement</a></span>
+</footer>
+{% endif %}
+
+</body>
+</html>

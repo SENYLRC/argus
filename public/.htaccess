@@ -1,0 +1,11 @@
+# Real files (attachment.php, signature.php, assets/*) are served as-is;
+# everything else routes through the front controller.
+RewriteEngine On
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+RewriteRule ^ index.php [L]
+
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+</IfModule>

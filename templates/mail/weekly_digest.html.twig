@@ -1,0 +1,54 @@
+{% extends "mail/_layout.html.twig" %}
+{% import "mail/_macros.html.twig" as m %}
+
+{# A real data table (not role=presentation) so screen readers announce the
+   column headers for each cell. #}
+{% macro request_table(caption, rows, show_needed) %}
+<table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 6px;border-collapse:collapse;font-size:14px;">
+  <caption style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);">{{ caption }}</caption>
+  <thead>
+    <tr>
+      <th scope="col" align="left" style="padding:8px 10px 8px 0;border-bottom:2px solid #201E1D;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#5F5F5F;">Request</th>
+      <th scope="col" align="left" style="padding:8px 10px;border-bottom:2px solid #201E1D;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#5F5F5F;">Payable to</th>
+      {% if show_needed %}<th scope="col" align="left" style="padding:8px 10px;border-bottom:2px solid #201E1D;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#5F5F5F;">Needed by</th>{% endif %}
+      <th scope="col" align="right" style="padding:8px 0 8px 10px;border-bottom:2px solid #201E1D;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#5F5F5F;">Amount</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in rows %}
+    <tr>
+      <td style="padding:9px 10px 9px 0;border-bottom:1px solid #E3E0DC;font-weight:bold;white-space:nowrap;">{{ r.number }}</td>
+      <td style="padding:9px 10px;border-bottom:1px solid #E3E0DC;">{{ r.payable_to }}</td>
+      {% if show_needed %}<td style="padding:9px 10px;border-bottom:1px solid #E3E0DC;white-space:nowrap;">{{ r.date_needed }}</td>{% endif %}
+      <td align="right" style="padding:9px 0 9px 10px;border-bottom:1px solid #E3E0DC;white-space:nowrap;">{{ r.amount }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="{{ show_needed ? 4 : 3 }}" style="padding:9px 0;border-bottom:1px solid #E3E0DC;color:#5F5F5F;">None this week.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endmacro %}
+
+{% block subject %}Requests this week — {{ pending_count }} awaiting approval, {{ approved_count }} approved{% endblock %}
+{% block preheader %}{{ pending_count }} awaiting the Executive Director ({{ pending_total }}); {{ approved_count }} approved in the last 7 days, ready for QuickBooks.{% endblock %}
+{% block body %}
+{{ m.heading('This week’s requests') }}
+{{ m.details({'Awaiting approval': pending_count ~ ' (' ~ pending_total ~ ')', 'Longest wait': pending_count ? (oldest_days ~ ' ' ~ (oldest_days == 1 ? 'day' : 'days')) : '', 'Approved in the last 7 days': approved_count}) }}
+{{ m.subheading('Awaiting Executive Director signature') }}
+{{ _self.request_table('Awaiting Executive Director signature', awaiting_ed, true) }}
+{{ m.subheading('Approved in the last 7 days — ready for QuickBooks') }}
+{{ _self.request_table('Approved in the last 7 days', approved_recent, false) }}
+{{ m.button(cta_url|default(base_url), 'Open the requests') }}
+{% endblock %}
+{% block plain %}{% autoescape false %}This week's requests
+
+AWAITING EXECUTIVE DIRECTOR SIGNATURE ({{ pending_count }}, {{ pending_total }})
+{% for r in awaiting_ed %}  {{ r.number }} · {{ r.payable_to }} · {{ r.amount }} · needed by {{ r.date_needed }}
+{% else %}  None this week.
+{% endfor %}{% if pending_count %}Longest wait: {{ oldest_days }} days.
+{% endif %}
+APPROVED IN THE LAST 7 DAYS — READY FOR QUICKBOOKS ({{ approved_count }})
+{% for r in approved_recent %}  {{ r.number }} · {{ r.payable_to }} · {{ r.amount }}
+{% else %}  None this week.
+{% endfor %}
+Open the requests: {{ cta_url|default(base_url) }}{% endautoescape %}{% endblock %}

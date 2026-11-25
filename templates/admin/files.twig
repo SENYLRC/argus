@@ -1,0 +1,140 @@
+{% extends 'layout.twig' %}
+{% block title %}Files &amp; branding — Administration{% endblock %}
+{% block content %}
+<main id="main" class="wide">
+  <div class="page-head" style="border-bottom:2px solid var(--rule);">
+    <div>
+      <h1>Files &amp; branding</h1>
+      <p>Logos used on the site, PDFs and emails, and everything people have uploaded. Files tied to an approved or completed record can’t be deleted.</p>
+    </div>
+  </div>
+  {% include 'admin/_nav.twig' %}
+
+  <section id="logos" class="admin-section" aria-labelledby="logos-h">
+    <h2 class="section-heading" id="logos-h">Logos</h2>
+    <p class="admin-section__intro">Use only official files from <code>S:\Marketing &amp; Branding\Southeastern Main Logos</code> — the style guide forbids altering, cropping or recolouring the logo. PNG or JPG, at least 64px tall, up to 2MB; uploads are re-saved as PNG.</p>
+    <div class="logo-grid">
+      {% for l in logos %}
+      <div class="logo-card">
+        <h3 class="logo-card__title">{{ l.label }}</h3>
+        <p class="field-hint" style="margin:0 0 12px;">{{ l.help }}</p>
+        <div class="logo-card__preview" style="background:{{ l.preview_bg }};">
+          <img src="{{ l.url }}" alt="Current {{ l.label|lower }}">
+        </div>
+        <p class="small" style="margin:8px 0 12px;">{{ l.custom ? 'Custom upload' : 'Official Southeastern logo' }}</p>
+        <form method="post" action="/admin/files/logo/{{ l.slot }}" enctype="multipart/form-data">
+          {{ csrf_field|raw }}
+          <label for="logo-{{ l.slot }}">Replace with</label>
+          <input id="logo-{{ l.slot }}" type="file" name="logo" accept="image/png,image/jpeg" required style="display:block;margin:6px 0 10px;">
+          <button type="submit" class="btn btn-outline btn-small">Upload</button>
+        </form>
+        {% if l.custom %}
+        <form method="post" action="/admin/files/logo/{{ l.slot }}/reset" style="margin-top:8px;">
+          {{ csrf_field|raw }}
+          <button type="submit" class="btn-text">Restore official logo</button>
+        </form>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section id="attachments" class="admin-section" aria-labelledby="att-h">
+    <h2 class="section-heading" id="att-h">Request attachments</h2>
+    {% if attachments %}
+    <div class="table-scroll" tabindex="0" role="region" aria-labelledby="att-h">
+    <table class="data">
+      <caption>Uploaded attachments, newest first (up to 300)</caption>
+      <thead><tr><th scope="col">File</th><th scope="col">Request</th><th scope="col">Uploaded</th><th scope="col">By</th><th scope="col" class="num">Size</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+      <tbody>
+        {% for a in attachments %}
+        <tr>
+          <td>
+            {% if a.missing %}{{ a.orig_name }} <span class="text-danger small">(file missing from storage)</span>
+            {% else %}<a href="/attachment.php?id={{ a.id }}">{{ a.orig_name }}</a>{% endif %}
+            <span class="muted small">· {{ a.type }}</span>
+          </td>
+          <td class="nowrap"><a href="/requests/{{ a.request_id }}">{{ a.number }}</a> <span class="muted small">· {{ a.status }}</span></td>
+          <td class="nowrap muted small">{{ a.when }}</td>
+          <td class="nowrap">{{ a.uploader|default('—') }}</td>
+          <td class="num nowrap">{{ a.size }}</td>
+          <td class="nowrap">
+            {% if a.can_delete %}
+            <form method="post" action="/admin/files/attachments/{{ a.id }}/delete" data-confirm="Delete {{ a.orig_name }} from {{ a.number }}? This can’t be undone.">
+              {{ csrf_field|raw }}
+              <button type="submit" class="btn-text text-danger" aria-label="Delete {{ a.orig_name }} from {{ a.number }}">Delete</button>
+            </form>
+            {% else %}<span class="muted small">Part of the record</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}<p class="admin-section__intro">No attachments yet.</p>{% endif %}
+  </section>
+
+  <section id="signatures" class="admin-section" aria-labelledby="sig-h">
+    <h2 class="section-heading" id="sig-h">Signature images</h2>
+    <p class="admin-section__intro">Read-only: signed records keep their own copy, and people manage their signatures from the sign-off panel. Retired images stay on file because past records reference them.</p>
+    {% if signatures %}
+    <div class="table-scroll" tabindex="0" role="region" aria-labelledby="sig-h">
+    <table class="data">
+      <caption>Signature images by person</caption>
+      <thead><tr><th scope="col">Person</th><th scope="col">Label</th><th scope="col">Uploaded</th><th scope="col">Status</th></tr></thead>
+      <tbody>
+        {% for s in signatures %}
+        <tr>
+          <td>{{ s.name }}</td><td>{{ s.label }}</td>
+          <td class="nowrap muted small">{{ s.uploaded_at|date('M j, Y') }}</td>
+          <td>{{ s.retired_at ? 'Retired' : (s.is_default ? 'Default' : 'Active') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}<p class="admin-section__intro">No signature images yet.</p>{% endif %}
+  </section>
+
+  <section id="records" class="admin-section" aria-labelledby="rec-h">
+    <h2 class="section-heading" id="rec-h">Stored record PDFs</h2>
+    <p class="admin-section__intro">Saved once, the first time a request’s PDF is opened after it’s approved, and never changed. Read-only.</p>
+    {% if records %}
+    <ul class="link-list">
+      {% for r in records %}<li><a href="/requests/{{ r.id }}/record.pdf">{{ r.number }}.pdf</a></li>{% endfor %}
+    </ul>
+    {% else %}<p class="admin-section__intro">No stored record PDFs yet.</p>{% endif %}
+  </section>
+
+  <section id="housekeeping" class="admin-section" aria-labelledby="hk-h" style="border-bottom:0;">
+    <h2 class="section-heading" id="hk-h">Storage &amp; housekeeping</h2>
+    <table class="data" style="max-width:560px;">
+      <caption>Disk use by area</caption>
+      <thead><tr><th scope="col">Area</th><th scope="col" class="num">Files</th><th scope="col" class="num">Size</th></tr></thead>
+      <tbody>
+        {% for u in usage %}
+        <tr><td>{{ u.label }}</td><td class="num">{{ u.files is null ? '' : u.files }}</td><td class="num">{{ u.size }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <h3 class="section-heading" style="margin-top:24px;">Orphaned attachment files</h3>
+    {% if orphans %}
+    <p class="admin-section__intro">{{ orphans|length }} file(s) in storage that no request points to — usually left by an upload that failed partway.</p>
+    <ul class="link-list">{% for o in orphans|slice(0, 20) %}<li><code>{{ o.path }}</code> <span class="muted small">· {{ o.size }}</span></li>{% endfor %}</ul>
+    {% if orphans|length > 20 %}<p class="small muted">…and {{ orphans|length - 20 }} more.</p>{% endif %}
+    <form method="post" action="/admin/files/orphans/delete" data-confirm="Delete {{ orphans|length }} orphaned file(s)? This can’t be undone.">
+      {{ csrf_field|raw }}
+      <button type="submit" class="btn btn-danger-outline btn-small">Delete orphaned files</button>
+    </form>
+    {% else %}<p class="admin-section__intro">None — every attachment file belongs to a request.</p>{% endif %}
+
+    <h3 class="section-heading" style="margin-top:24px;">Template cache</h3>
+    <p class="admin-section__intro">Pages pick up updated templates automatically. Clearing the cache is a safe fallback if a screen still looks out of date after new files are copied to the server.</p>
+    <form method="post" action="/admin/files/cache/clear">
+      {{ csrf_field|raw }}
+      <button type="submit" class="btn btn-outline btn-small">Clear template cache</button>
+    </form>
+  </section>
+</main>
+{% endblock %}
