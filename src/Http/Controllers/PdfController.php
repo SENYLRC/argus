@@ -158,6 +158,7 @@ final class PdfController extends Controller
     private function streamPdf(string $bytes, string $filename): void
     {
         header('Content-Type: application/pdf');
+        header('Cache-Control: no-store');
         header('Content-Disposition: inline; filename="' . $filename . '"');
         header('Content-Length: ' . strlen($bytes));
         echo $bytes;

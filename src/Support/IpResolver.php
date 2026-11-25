@@ -19,9 +19,17 @@ final class IpResolver
         $trusted = Config::get('trusted_proxies', []);
 
         if (!empty($_SERVER['HTTP_X_FORWARDED_FOR']) && in_array($remote, $trusted, true)) {
-            $forwarded = trim(explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'])[0]);
-            if (filter_var($forwarded, FILTER_VALIDATE_IP)) {
-                return $forwarded;
+            // Walk the chain from the nearest hop, skipping our own proxies: the first address that
+            // isn't one of them is the client. The left-most entries are whatever the client itself
+            // claimed, so they can't be trusted (a forged one would dodge lockouts and the audit log).
+            $chain = array_map('trim', explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']));
+            for ($i = count($chain) - 1; $i >= 0; $i--) {
+                if (filter_var($chain[$i], FILTER_VALIDATE_IP) === false) {
+                    break;
+                }
+                if (!in_array($chain[$i], $trusted, true)) {
+                    return $chain[$i];
+                }
             }
         }
 

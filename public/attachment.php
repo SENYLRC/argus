@@ -64,4 +64,5 @@ header('Content-Type: ' . $attachment['mime']);
 header('Content-Disposition: inline; filename="' . $safeName . '"');
 header('Content-Length: ' . filesize($path));
 header('X-Content-Type-Options: nosniff');
+header('Cache-Control: private, no-store');
 readfile($path);

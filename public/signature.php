@@ -58,4 +58,5 @@ header('Content-Type: image/png');
 header('Content-Disposition: inline; filename="signature.png"');
 header('Content-Length: ' . filesize($path));
 header('X-Content-Type-Options: nosniff');
+header('Cache-Control: private, no-store');
 readfile($path);

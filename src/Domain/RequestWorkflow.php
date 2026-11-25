@@ -50,9 +50,15 @@ final class RequestWorkflow
         $copyPath = UploadService::copySignatureForSignoff($signature['stored_path']);
 
         Db::transaction(function (PDO $pdo) use ($request, $actor, $typedName, $signature, $copyPath, $ip, $geo) {
-            $pdo->prepare(
-                "UPDATE requests SET status = 'approved', approved_by = :by, approved_at = NOW() WHERE id = :id"
-            )->execute(['by' => $actor['id'], 'id' => $request['id']]);
+            // Re-checked in the UPDATE itself: two people acting at the same moment can both have read
+            // "pending" above, and only one of them may win. The loser rolls back with nothing written.
+            $upd = $pdo->prepare(
+                "UPDATE requests SET status = 'approved', approved_by = :by, approved_at = NOW() WHERE id = :id AND status = 'pending'"
+            );
+            $upd->execute(['by' => $actor['id'], 'id' => $request['id']]);
+            if ($upd->rowCount() !== 1) {
+                throw new WorkflowException('This request is no longer awaiting approval.');
+            }
 
             $this->insertSignoff($pdo, $request['id'], $actor, 'approve', $typedName, $signature['id'], $copyPath, $ip, $geo);
         });
@@ -82,9 +88,13 @@ final class RequestWorkflow
         $geo = GeoLocator::lookup($ip);
 
         Db::transaction(function (PDO $pdo) use ($request, $actor, $reason, $ip, $geo) {
-            $pdo->prepare(
-                "UPDATE requests SET status = 'rejected', reject_reason = :reason WHERE id = :id"
-            )->execute(['reason' => $reason, 'id' => $request['id']]);
+            $upd = $pdo->prepare(
+                "UPDATE requests SET status = 'rejected', reject_reason = :reason WHERE id = :id AND status = 'pending'"
+            );
+            $upd->execute(['reason' => $reason, 'id' => $request['id']]);
+            if ($upd->rowCount() !== 1) {
+                throw new WorkflowException('This request is no longer awaiting approval.');
+            }
 
             $this->insertSignoff($pdo, $request['id'], $actor, 'reject', $actor['name'], null, null, $ip, $geo, pinVerified: false);
         });

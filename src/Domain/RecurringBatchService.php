@@ -133,12 +133,19 @@ final class RecurringBatchService
             // Only the submitter's own lines — a forged template id from someone else's sheet is ignored.
             $templateStmt = $pdo->prepare('SELECT * FROM recurring_templates WHERE id = :id AND owner_id = :owner AND active = 1');
             $numbers = [];
+            $submitter = null;
 
             foreach ($amountsCentsByTemplateId as $templateId => $amountCents) {
                 $templateStmt->execute(['id' => $templateId, 'owner' => $submitterId]);
                 $template = $templateStmt->fetch();
                 if (!$template || $amountCents <= 0) {
                     continue;
+                }
+                // Lines are checked against the person's assignments when saved; check again now,
+                // so a line an admin has since taken away can't keep producing requests.
+                $submitter ??= UserRepository::find($submitterId);
+                if ($template['budget_line_id'] && (!$submitter || !BudgetLineRepository::isVisibleTo((int) $template['budget_line_id'], $submitter))) {
+                    throw new WorkflowException("The budget line for {$template['payable_to']} is no longer available to you. Remove it from your sheet, or ask Admin / Tech to assign it again.");
                 }
 
                 $number = RequestNumberGenerator::next($pdo);

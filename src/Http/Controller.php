@@ -79,6 +79,10 @@ abstract class Controller
     /** Echo a Twig template with the shared chrome context (baseContext) merged under $context. */
     protected function render(string $template, array $context = []): void
     {
+        // Pages hold financial and personal data: never keep a copy in a browser or proxy cache
+        // (the Back button after sign-out would otherwise show them). PHP's session handling does
+        // this by default, but that depends on php.ini, so say it here too.
+        header('Cache-Control: no-store');
         echo $this->twig->render($template, array_merge($this->baseContext(), $context));
     }
 

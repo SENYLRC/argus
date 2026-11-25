@@ -13,6 +13,7 @@ use App\Domain\UserRepository;
 use App\Http\Controller;
 use App\Support\Auth;
 use App\Support\Config;
+use App\Support\Db;
 use App\Support\Settings;
 use Twig\Environment;
 
@@ -155,11 +156,13 @@ final class UsersController extends Controller
     /** Clear password, PIN and two-step sign-in, sign out sessions and email a fresh set-password link. */
     public function reset(array $params): void
     {
-        $this->requireRole(['admin', 'ed', 'bookkeeper']);
+        $actor = $this->requireRole(['admin', 'ed', 'bookkeeper']);
         $this->requireCsrf();
         $id = (int) $params['id'];
         $target = UserRepository::find($id);
-        if (!$target) {
+        // Same rule as editing: only Admin / Tech may touch an ED, bookkeeper or admin account.
+        // Without this an ED or bookkeeper could wipe the admin's password, PIN and two-step setup.
+        if (!$target || !$this->canManage($actor, $target)) {
             http_response_code(404);
             $this->render('errors/404.twig');
             return;
@@ -182,17 +185,30 @@ final class UsersController extends Controller
     /** Deactivate or reactivate an account (history is kept). */
     public function toggle(array $params): void
     {
-        $this->requireRole(['admin', 'ed', 'bookkeeper']);
+        $actor = $this->requireRole(['admin', 'ed', 'bookkeeper']);
         $this->requireCsrf();
         $id = (int) $params['id'];
         $target = UserRepository::find($id);
-        if (!$target) {
+        if (!$target || !$this->canManage($actor, $target)) {
             http_response_code(404);
             $this->render('errors/404.twig');
             return;
         }
 
         $newActive = !$target['active'];
+        if (!$newActive) {
+            if ($id === (int) $actor['id']) {
+                $this->flash('You can’t deactivate your own account.');
+                $this->redirect('/users');
+                return;
+            }
+            $admins = (int) Db::conn()->query("SELECT COUNT(*) FROM users WHERE role = 'admin' AND active = 1")->fetchColumn();
+            if ($target['role'] === 'admin' && $admins <= 1) {
+                $this->flash('Not deactivated: that is the only active Admin / Tech account.');
+                $this->redirect('/users');
+                return;
+            }
+        }
         UserRepository::setActive($id, (bool) $newActive);
         AuditLogger::log('user', $id, $newActive ? 'reactivate' : 'deactivate', ($newActive ? 'Reactivated ' : 'Deactivated ') . $target['email']);
         $this->flash($target['name'] . ($newActive ? ' reactivated.' : ' deactivated — history and signatures kept.'));
