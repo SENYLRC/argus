@@ -321,10 +321,10 @@ final class UsersController extends Controller
     private function capsFor(string $role): string
     {
         return match ($role) {
-            'admin' => 'Everything, plus accounts & audit log',
-            'ed' => 'Approve, reject, sign off, manage accounts',
-            'bookkeeper' => 'See and print every request (payment is done in QuickBooks), manage staff accounts',
-            default => 'Submit, edit & delete own unapproved requests',
+            'admin' => 'Everything, plus accounts & audit log. Sees every budget line until some are assigned to them, then only those and the shared lines',
+            'ed' => 'Approve, reject, sign off, manage accounts. Sees every budget line',
+            'bookkeeper' => 'See and print every request (payment is done in QuickBooks), manage staff accounts. Sees every budget line',
+            default => 'Submit, edit & delete own unapproved requests. Can use only the shared lines and the lines assigned to them',
         };
     }
 }

@@ -8,7 +8,7 @@
   </label>
   <label class="choice">
     <input type="radio" name="audience" value="assigned" {{ not shared ? 'checked' }}>
-    <span><span class="choice__label">Only the people ticked below</span><span class="choice__hint">The ED and bookkeeper always see every line.</span></span>
+    <span><span class="choice__label">Only the people ticked below</span><span class="choice__hint">The ED and bookkeeper always see every line. Staff not ticked here can’t use it. Admin / Tech with nothing assigned still see everything.</span></span>
   </label>
   <div class="check-columns" role="group" aria-label="People who can use this line">
     {% for u in staff %}

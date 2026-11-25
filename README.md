@@ -64,11 +64,17 @@ migration once, records it in `schema_migrations`, and re-applies the app
 user's per-table grants (data rights only; `audit_log` is SELECT + INSERT so
 the audit trail is append-only).
 
-**Shared servers.** `.env` (database password, `APP_KEY`) is readable by the web server's
-user. If other PHP sites run as that same user, give Argus its own: a dedicated php-fpm
-pool and user for this vhost, then install with `sudo WEB_USER=argus bash deploy/install.sh`
-(the installer owns `.env`, `storage/` and the cron jobs as that user). Per-site
-`open_basedir` helps but is not a substitute for a separate user.
+**Shared servers.** `.env` (database password, `APP_KEY`) is readable by the account PHP runs
+as. If other PHP sites run as that same account, give Argus its own: create the user
+(`adduser --system --group --no-create-home argus`), add a php-fpm pool for it
+(`deploy/php-fpm-pool.conf.example`), point this vhost at the pool (the commented block in
+`deploy/vhost.conf`), then install once with `sudo WEB_USER=argus bash deploy/install.sh`.
+The installer then owns `.env`, `storage/` and the cron jobs as that user and **records it in
+`.env` as `ARGUS_WEB_USER`**, so later updates run as the same account even if the variable is
+left out (pass `WEB_USER=` again to change it). Before changing any ownership it checks that a
+php-fpm pool is really running as that user and stops if not, because under `mod_php` PHP runs
+as Apache's own account, which couldn't read the files. `SKIP_RUNTIME_CHECK=1` overrides the
+check. Per-site `open_basedir` helps but is not a substitute for a separate user.
 
 **One-time server setup** (already done on the production server): Apache modules
 `ssl headers rewrite`, the vhost from `deploy/vhost.conf` (site file
@@ -113,6 +119,35 @@ php bin/console user:create-admin you@example.org "Your Name"
   has not been independently tested.
 - Server-level hardening (PHP settings, file permissions, a least-privilege database user,
   an IP allow list in the web server) is deployment work: see `deploy/`.
+
+## Accounts, roles and budget-line access
+
+There are four roles. Role changes (ED, bookkeeper, admin) can only be made by Admin / Tech.
+
+| Role | Can do | Budget lines it can use |
+|---|---|---|
+| **Staff** | Submit requests; edit or delete their own while still awaiting approval | Shared lines and the lines assigned to them |
+| **Executive Director** | Approve or reject with a signature and PIN; manage staff accounts | Every line |
+| **Bookkeeper** | See and print every request (payment is done in QuickBooks); manage staff accounts | Every line |
+| **Admin / Tech** | Everything, including accounts, budget lines, security and the audit log | Every line until lines are assigned to them, then only those plus the shared ones |
+
+**Who can use which budget line**
+
+- A **shared** line is usable by everyone (travel, postage and building lines are pre-marked
+  by migration 003; toggle per line under Administration).
+- **Staff** can use a line only if it is shared or assigned to them. A new staff account with
+  nothing assigned therefore sees **only the shared lines**: it fails closed, so forgetting to
+  assign lines never exposes the whole budget.
+- **Admin / Tech** with nothing assigned keep access to every line. This is deliberate: an admin
+  can assign themselves any line, so restricting them only risks locking out the person who
+  manages assignments. Once any line is assigned to an admin account, it is restricted the same
+  way as staff (assigned plus shared).
+- The **Executive Director** and **bookkeeper** always see every line.
+
+Assign lines per person (Accounts, Edit, "Budget lines this person can use") or per line
+(Administration, Overview). The server enforces the rules when a request is saved, not just in the
+form, so a hand-edited form can't use a line the account isn't allowed. When you add real staff
+accounts, assign their lines straight away.
 
 ## Administration & operations
 

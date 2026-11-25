@@ -24,9 +24,10 @@
 set -euo pipefail
 
 APP_DIR=/var/www/argus
-# The account Apache/PHP runs this app as. On a server shared with other PHP sites, run Argus
-# under its own user (a dedicated php-fpm pool) so those sites can't read .env; see the README.
-WEB_USER="${WEB_USER:-www-data}"
+# WEB_USER, if passed, picks the account PHP runs this app as (resolved below). On a server shared
+# with other PHP sites, run Argus under its own user via a dedicated php-fpm pool so those sites
+# can't read .env; see the README and deploy/php-fpm-pool.conf.example.
+WEB_USER_ARG="${WEB_USER:-}"
 SEED=0   # the seed creates accounts with a shared, documented dev password: opt in with --seed
 FORCE_DB=0
 for arg in "$@"; do
@@ -45,6 +46,19 @@ die()  { printf '\nERROR: %s\n' "$*" >&2; exit 1; }
 [[ "$(pwd -P)" == "$APP_DIR" ]] || die "run from $APP_DIR (cd $APP_DIR first)"
 [[ -f composer.json && -f db/schema.sql ]] || die "app files missing from $APP_DIR"
 
+# Which account runs the app. Order: WEB_USER passed to this run, then ARGUS_WEB_USER recorded in
+# .env by an earlier run, then www-data. Recording it means a routine update that leaves the
+# variable out keeps the dedicated user, instead of handing .env and storage/ back to the shared one.
+RECORDED_USER=""
+[[ -f .env ]] && RECORDED_USER="$(sed -n 's/^ARGUS_WEB_USER=//p' .env | tail -n1 | tr -d "\"' \r")"
+WEB_USER="${WEB_USER_ARG:-${RECORDED_USER:-www-data}}"
+[[ "$WEB_USER" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || die "'$WEB_USER' isn't a valid account name"
+id "$WEB_USER" >/dev/null 2>&1 || die "account '$WEB_USER' doesn't exist (create it: adduser --system --group --no-create-home $WEB_USER)"
+if [[ -n "$WEB_USER_ARG" && -n "$RECORDED_USER" && "$WEB_USER_ARG" != "$RECORDED_USER" ]]; then
+    echo "Changing the app's account from $RECORDED_USER to $WEB_USER"
+fi
+echo "App account: $WEB_USER"
+
 say "Checking PHP extensions and Apache modules"
 # Capture the lists once, then search them. (Piping straight into `grep -q`
 # can fail at random under `set -o pipefail`: grep exits on the first match,
@@ -61,6 +75,27 @@ command -v mysql    >/dev/null || die "mysql client not installed (apt install m
 for mod in rewrite ssl headers; do
     grep -q "^ ${mod}_module" <<<"$APACHE_MODS" || die "Apache module $mod not enabled (a2enmod $mod)"
 done
+
+# Apache's own account (from its envvars), which mod_php would run PHP as.
+APACHE_USER="$( (. /etc/apache2/envvars 2>/dev/null; echo "${APACHE_RUN_USER:-www-data}") )"
+if [[ "$WEB_USER" != "$APACHE_USER" ]]; then
+    say "Checking that PHP runs as $WEB_USER"
+    # A dedicated account only works if PHP-FPM runs this site's pool as it. Under mod_php PHP
+    # runs as Apache's account, which could no longer read files owned by $WEB_USER: the site
+    # would go down, and nothing would be isolated.
+    POOL_USERS="$(ps -eo user:32=,args= | awk '/php-fpm: pool/ {print $1}' | sort -u | tr '\n' ' ')"
+    if [[ " $POOL_USERS" != *" $WEB_USER "* && "${SKIP_RUNTIME_CHECK:-0}" != 1 ]]; then
+        die "no php-fpm pool is running as '$WEB_USER' (pools seen run as: ${POOL_USERS:-none}). Set one up first (deploy/php-fpm-pool.conf.example), or run without WEB_USER and with ARGUS_WEB_USER removed from .env to use $APACHE_USER. SKIP_RUNTIME_CHECK=1 overrides this check."
+    fi
+    if [[ " $POOL_USERS" == *" $WEB_USER "* ]]; then
+        echo "OK: php-fpm is running a pool as $WEB_USER (pools: $POOL_USERS)"
+    else
+        echo "WARNING: pool check skipped (SKIP_RUNTIME_CHECK=1); no pool is running as $WEB_USER right now."
+    fi
+    if grep -q "^ php[0-9]*_module" <<<"$APACHE_MODS"; then
+        echo "NOTE: mod_php is loaded. This site's vhost must hand .php to the pool (SetHandler proxy:fcgi), or PHP still runs as $APACHE_USER."
+    fi
+fi
 
 say "Installing PHP dependencies"
 COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --no-interaction
@@ -120,6 +155,9 @@ if [[ -f config/secrets.php ]]; then
     rm -f config/secrets.php
     echo "Removed config/secrets.php (its password now lives in .env)"
 fi
+# Record the account so later runs without WEB_USER keep it (see the top of this script).
+sed -i '/^ARGUS_WEB_USER=/d' .env
+printf 'ARGUS_WEB_USER=%s\n' "$WEB_USER" >> .env
 chown root:"$WEB_USER" .env && chmod 640 .env
 
 # Read the effective settings the same way the app does (.env + config.php).
@@ -236,7 +274,7 @@ chown -R root:"$WEB_USER" "$APP_DIR"
 find "$APP_DIR" -type d -exec chmod 750 {} +
 find "$APP_DIR" -type f -exec chmod 640 {} +
 chmod 750 bin/console deploy/install.sh
-for d in attachments signatures generated_pdfs tmp branding; do
+for d in attachments signatures generated_pdfs tmp tmp/sessions branding; do
     mkdir -p "storage/$d"
 done
 # Compiled templates from the previous copy of the code — rebuilt on next load.
@@ -244,7 +282,13 @@ rm -rf storage/tmp/twig_cache
 chown -R "$WEB_USER":"$WEB_USER" storage
 find storage -type d -exec chmod 770 {} +
 find storage -type f -exec chmod 660 {} +
-chmod 640 .env config/config.php   # root:www-data — readable by Apache, not world
+chmod 640 .env config/config.php   # root:$WEB_USER — readable by the app's account, not world
+if [[ "$WEB_USER" != "$APACHE_USER" ]]; then
+    # Apache itself serves public/ (assets, .htaccess) and has to walk to it; PHP (as $WEB_USER)
+    # does the rest. Everything outside public/ stays closed to Apache's account and everyone else.
+    chmod 711 "$APP_DIR"
+    chmod -R o+rX "$APP_DIR/public"
+fi
 
 if (( SEEDED )); then
     say "Placeholder signatures"
