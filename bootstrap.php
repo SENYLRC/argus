@@ -26,6 +26,12 @@ $twig = new Environment($twigLoader, [
     // copied onto the server.
     'auto_reload' => true,
 ]);
+// {{ asset('/assets/app.js') }} — the URL with ?v=<file modified time>, so a browser can never
+// keep serving an old script or stylesheet after a deploy (static files carry no cache rules).
+$twig->addFunction(new \Twig\TwigFunction('asset', static function (string $path): string {
+    $file = __DIR__ . '/public' . $path;
+    return $path . '?v=' . (is_file($file) ? filemtime($file) : '0');
+}));
 // {{ brand_url('header') }} — current logo for a slot (Administration > Files & branding).
 $twig->addFunction(new \Twig\TwigFunction('brand_url', [\App\Support\Branding::class, 'url']));
 
