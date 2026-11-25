@@ -24,7 +24,9 @@
 set -euo pipefail
 
 APP_DIR=/var/www/argus
-WEB_USER=www-data
+# The account Apache/PHP runs this app as. On a server shared with other PHP sites, run Argus
+# under its own user (a dedicated php-fpm pool) so those sites can't read .env; see the README.
+WEB_USER="${WEB_USER:-www-data}"
 SEED=0   # the seed creates accounts with a shared, documented dev password: opt in with --seed
 FORCE_DB=0
 for arg in "$@"; do
@@ -255,7 +257,8 @@ say "File integrity baseline"
 sudo -u "$WEB_USER" php bin/console files:baseline || echo "Baseline skipped (database not ready?) — run: sudo -u $WEB_USER php bin/console files:baseline"
 
 say "Cron"
-install -m 644 -o root -g root deploy/senylrc-expenses.cron /etc/cron.d/senylrc-expenses
+sed "s/  www-data  /  ${WEB_USER}  /" deploy/senylrc-expenses.cron > /etc/cron.d/senylrc-expenses
+chown root:root /etc/cron.d/senylrc-expenses && chmod 644 /etc/cron.d/senylrc-expenses
 
 say "Apache"
 if apache2ctl configtest; then

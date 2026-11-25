@@ -54,19 +54,25 @@ final class BudgetLineRepository
             $stmt->execute(['u' => $userId]);
             return array_map('intval', $stmt->fetchAll(\PDO::FETCH_COLUMN));
         } catch (\PDOException) {
-            return []; // migration not applied yet — behave as "sees all"
+            return []; // migration not applied yet
         }
     }
 
     /**
-     * The Executive Director and bookkeeper see every line. Staff and Admin /
-     * Tech see their assigned lines plus shared ones — unless nothing is
-     * assigned to them yet, in which case they see every line (transitional,
-     * so nobody is locked out while assignments are set up).
+     * The Executive Director and bookkeeper see every line. Staff see only their
+     * assigned lines plus shared ones: a new account with nothing assigned sees
+     * the shared lines and nothing else until an admin assigns more (fail
+     * closed). Admin / Tech with nothing assigned yet still see every line:
+     * an admin can assign themselves anything, so restricting them only risks
+     * locking the one person who sets assignments out of the request form.
      */
     public static function seesAll(array $user): bool
     {
-        return !in_array($user['role'] ?? 'staff', self::RESTRICTED_ROLES, true) || !self::assignedIds((int) $user['id']);
+        $role = $user['role'] ?? 'staff';
+        if (!in_array($role, self::RESTRICTED_ROLES, true)) {
+            return true;
+        }
+        return $role === 'admin' && !self::assignedIds((int) $user['id']);
     }
 
     /** forClass(), narrowed to what $user may use: their assigned lines plus every shared line. */

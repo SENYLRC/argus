@@ -64,6 +64,12 @@ migration once, records it in `schema_migrations`, and re-applies the app
 user's per-table grants (data rights only; `audit_log` is SELECT + INSERT so
 the audit trail is append-only).
 
+**Shared servers.** `.env` (database password, `APP_KEY`) is readable by the web server's
+user. If other PHP sites run as that same user, give Argus its own: a dedicated php-fpm
+pool and user for this vhost, then install with `sudo WEB_USER=argus bash deploy/install.sh`
+(the installer owns `.env`, `storage/` and the cron jobs as that user). Per-site
+`open_basedir` helps but is not a substitute for a separate user.
+
 **One-time server setup** (already done on the production server): Apache modules
 `ssl headers rewrite`, the vhost from `deploy/vhost.conf` (site file
 `argus.conf`, bound to the server's private IP, office-IP `Require ip`, per-site PHP
@@ -124,8 +130,10 @@ Administration (Admin / Tech only) is split into sub-pages:
 every line. Staff and Admin / Tech see the lines assigned to them (Accounts → Edit,
 or per line under Administration) plus every **shared** line (travel,
 postage, building — migration 003 pre-marks lines whose names match). A staff
-member with nothing assigned yet still sees every line, so nobody is locked
-out during setup. The server enforces this on submit, not just in the form.
+member with nothing assigned sees only the shared lines until an admin assigns
+more (new accounts start closed). Admin / Tech with nothing assigned still see every
+line, since an admin can assign themselves anything. The server enforces this on
+submit, not just in the form.
 
 **Fiscal years.** The council's FY runs July 1 – June 30. Every budget line
 belongs to one FY, and every request records which FY it's charged to: the
