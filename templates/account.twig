@@ -203,7 +203,10 @@
     {% endif %}
     <details class="panel">
       <summary class="panel-heading" style="cursor:pointer;margin:0;">Add a security key or passkey</summary>
-      <form data-webauthn-register class="admin-form" style="margin-top:12px;" novalidate>
+      {# An explicit POST, and the button stays disabled until webauthn.js attaches. A form with no
+         method falls back to GET if the script fails to load, which would put the current
+         password and CSRF token in the address bar, history and server logs. #}
+      <form data-webauthn-register method="post" action="/account/keys/options" class="admin-form" style="margin-top:12px;" novalidate>
         {{ csrf_field|raw }}
         <fieldset class="plain-fieldset" style="margin-bottom:12px;">
           <legend class="field-label">What are you adding?</legend>
@@ -226,7 +229,8 @@
           <label for="key-pw">Your password</label>
           <input id="key-pw" type="password" name="current_password" autocomplete="current-password" required>
         </div>
-        <button type="submit" class="btn btn-primary" style="margin-top:14px;">Add key</button>
+        <button type="submit" class="btn btn-primary" style="margin-top:14px;" disabled data-needs-js>Add key</button>
+        <noscript><p class="field-hint" style="margin:10px 0 0;">Adding a key needs JavaScript. Turn it on for this site and reload.</p></noscript>
         <p class="field-hint" data-webauthn-status role="status" aria-live="polite" style="margin:10px 0 0;"></p>
       </form>
     </details>

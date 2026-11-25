@@ -55,13 +55,20 @@ final class SecurityKeyService
     public static function registrationOptions(array $user, string $kind = 'key'): object
     {
         $wa = self::webAuthn();
+        $passkey = $kind === 'passkey';
         $args = $wa->getCreateArgs(
             pack('N', (int) $user['id']), $user['email'], $user['name'],
-            60, false, false, $kind === 'passkey' ? null : true, self::credentialIds((int) $user['id'])
+            60,
+            $passkey,                      // a passkey is a discoverable credential; a security key doesn't need to be
+            $passkey ? 'preferred' : 'discouraged',
+            $passkey ? null : true,
+            self::credentialIds((int) $user['id'])
         );
-        // Touch only: don't make the browser ask for the key's PIN (the library
-        // sends "preferred"). The password is already the first factor.
-        $args->publicKey->authenticatorSelection->userVerification = 'discouraged';
+        // Security keys: touch only, so the browser doesn't ask for the key's PIN
+        // (the password is already the first factor). Passkeys: platform
+        // authenticators and password managers expect to create a discoverable
+        // credential and may verify the person, so they get the settings they
+        // are built for. Sign-in checks the signature either way.
         self::rememberChallenge('reg', $wa, (int) $user['id']);
         return $args;
     }

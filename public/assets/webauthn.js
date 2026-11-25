@@ -55,6 +55,7 @@
   // $startedAt is when the browser prompt was requested: a refusal within about
   // a second means nothing was ever offered (no key reachable, no passkey
   // provider), as opposed to the person cancelling or the prompt timing out.
+  var rpId = ''; // the host name the server says keys belong to, for the SecurityError message
   function explain(err, startedAt) {
     if (window.console) console.error('WebAuthn:', err);
     if (err && err.name === 'NotAllowedError' && startedAt && (Date.now() - startedAt) < 1500) {
@@ -62,7 +63,12 @@
     }
     if (err && err.name === 'NotAllowedError') return 'Cancelled or timed out. Try again and touch your key when it blinks. (NotAllowedError)';
     if (err && err.name === 'InvalidStateError') return 'That key is already registered on this account.';
-    if (err && err.name === 'SecurityError') return 'Security keys only work on https://' + location.hostname + '.';
+    if (err && err.name === 'SecurityError') {
+      if (rpId && rpId !== location.hostname) {
+        return 'Keys for this site are tied to the address ' + rpId + ', but you opened ' + location.hostname + '. Open the site at https://' + rpId + ' and try again.';
+      }
+      return 'Your browser refused the key on this address (' + location.hostname + '). Security keys need a secure https address, and keys are tied to the exact host name they were registered on.';
+    }
     return (err && err.message) || 'Something went wrong with the security key.';
   }
 
@@ -74,6 +80,7 @@
       form.querySelector('button[type=submit]').disabled = true;
       return;
     }
+    form.querySelector('button[type=submit]').disabled = false; // enabled only once this handler is attached
     form.addEventListener('submit', function (e) {
       e.preventDefault();
       var csrf = form.querySelector('[name=_csrf]').value;
@@ -89,6 +96,7 @@
           say(status, kind === 'passkey'
             ? 'Follow your browser’s prompt to create the passkey…'
             : 'Insert your security key and touch it when it blinks…');
+          rpId = (r.options && r.options.publicKey && r.options.publicKey.rp && r.options.publicKey.rp.id) || '';
           startedAt = Date.now();
           return navigator.credentials.create(toBuffers(r.options));
         })
@@ -124,6 +132,7 @@
       post('/login/verify/key/options', { _csrf: csrf })
         .then(function (r) {
           if (!r.ok) { if (r.redirect) window.location.href = r.redirect; throw new Error(r.error); }
+          rpId = (r.options && r.options.publicKey && r.options.publicKey.rpId) || '';
           startedAt = Date.now();
           return navigator.credentials.get(toBuffers(r.options));
         })
